@@ -102,9 +102,12 @@ export function avatarFace(kind, emoji, image, petEmoji) {
 }
 
 function avatarRule(selector, face, size, side) {
-  const base = selector + '::before{content:' + (face.text ? JSON.stringify(face.text) : '""') + ';display:flex;align-items:center;justify-content:center;box-sizing:border-box;'
-    + 'width:' + size + 'px;height:' + size + 'px;flex:none;border-radius:50%;margin:0 0 6px 0;'
-    + (side === 'user' ? 'margin-left:auto;' : '')
+  // Out of the layout flow on purpose: the picture is placed in the margin beside the chat column (left of replies, right of
+  // your messages) and takes NO height. A picture that took space in the flow would change the height of rows above the
+  // reader whenever a row fills in or folds, and the chat would jump under their eyes.
+  const base = selector + '::before{content:' + (face.text ? JSON.stringify(face.text) : '""') + ';position:absolute;top:2px;'
+    + (side === 'user' ? 'right:-' : 'left:-') + (size + 10) + 'px;pointer-events:none;display:flex;align-items:center;justify-content:center;box-sizing:border-box;'
+    + 'width:' + size + 'px;height:' + size + 'px;border-radius:50%;'
     + 'font-size:' + Math.round(size * 0.58) + 'px;line-height:1;overflow:hidden;'
     + (face.image ? 'background:center/cover no-repeat url("' + face.image + '");' : 'background:color-mix(in srgb,var(--dsw-alias-label-primary) 9%,var(--dsw-alias-bg-layer-1));')
     + 'box-shadow:0 0 0 1px color-mix(in srgb,var(--dsw-alias-label-primary) 14%,transparent)}'
@@ -117,7 +120,16 @@ export function avatarCss(s, images = {}, petEmoji = '') {
   const out = []
   const a = avatarFace(s.avatarAssistantKind, s.avatarAssistantEmoji, images.assistant, petEmoji)
   const u = avatarFace(s.avatarUserKind, s.avatarUserEmoji, images.user, petEmoji)
-  if (a) out.push(avatarRule('[data-chat-group-part="response"]', a, size, 'assistant'))
+  // Only a reply row that really has content gets a picture. The app lays out empty rows as zero height and skips
+  // their spacing, so a picture on an empty row would add height the app did not plan for and shove the chat around
+  // when the row fills in or folds away (the reader's place would jump).
+  const REPLY = '[data-chat-group-part="response"]:not(:empty):not(:has(> [data-slot="conversation.chat.node"]:empty)):not([hidden])'
+  if (a) out.push(avatarRule(REPLY, a, size, 'assistant'))
   if (u) out.push(avatarRule('[data-chat-flow-kind="user"]', u, size, 'user'))
+  if (out.length) {
+    // The rows need a positioning context for the out-of-flow picture. Not enough side room (narrow window): hide them.
+    out.push(REPLY + ',[data-chat-flow-kind="user"]{position:relative}')
+    out.push('@media (max-width:' + (720 + 2 * (size + 40)) + 'px){' + REPLY + '::before,[data-chat-flow-kind="user"]::before{display:none!important}}')
+  }
   return out.join('\n')
 }

@@ -56,8 +56,8 @@ test('avatars: nothing is drawn unless a side is switched on and has a face', ()
 
 test('avatars: emoji, pet and image faces target the right rows and stay safe', () => {
   const css = k.avatarCss({ avatarAssistantKind: 'emoji', avatarAssistantEmoji: '\u{1F989}', avatarUserKind: 'pet', avatarSize: 30 }, {}, '\u{1F98A}')
-  assert.match(css, /\[data-chat-group-part="response"\]::before\{content:"\u{1F989}"/u); assert.match(css, /\[data-chat-flow-kind="user"\]::before\{content:"\u{1F98A}"/u)
-  assert.match(css, /width:30px;height:30px/); assert.match(css, /margin-left:auto/)
+  assert.match(css, /\[data-chat-group-part="response"\][^{]*::before\{content:"\u{1F989}"/u); assert.match(css, /\[data-chat-flow-kind="user"\]::before\{content:"\u{1F98A}"/u)
+  assert.match(css, /width:30px;height:30px/); assert.match(css, /right:-40px/, 'your picture sits in the right margin'); assert.match(css, /left:-40px/, 'a reply picture sits in the left margin')
   const png = 'data:image/png;base64,iVBORw0KGgo='
   const withImg = k.avatarCss({ avatarAssistantKind: 'image', avatarSize: 24 }, { assistant: png }); assert.match(withImg, /url\("data:image\/png;base64,iVBORw0KGgo="\)/); assert.match(withImg, /content:""/)
 })
@@ -66,8 +66,8 @@ test('avatars: hostile emoji and image values are rejected, never put into css',
   for (const bad of ['"; } body{display:none} .x{', '\\', '<script>', 'a'.repeat(20), '', '   ', 5, null, 'x\ny', "it's"]) assert.equal(k.avatarEmoji(bad), k.AVATAR_EMOJI[0], JSON.stringify(bad))
   assert.equal(k.avatarEmoji('\u{1F431}'), '\u{1F431}'); assert.equal(k.avatarEmoji(' \u{1F431} '), '\u{1F431}'); assert.equal(k.avatarEmoji('\u{1F468}\u200D\u{1F4BB}'), '\u{1F468}\u200D\u{1F4BB}', 'a joined emoji is allowed')
   for (const bad of ['javascript:alert(1)', 'data:image/svg+xml;base64,PHN2Zz4=', 'data:text/html;base64,AAAA', 'data:image/png;base64,AA"); body{display:none}', 'data:image/png;base64,' + 'A'.repeat(130000), 5, null, 'https://evil.example/x.png']) assert.equal(k.avatarImage(bad), '', String(bad).slice(0, 50))
-  assert.doesNotMatch(k.avatarCss({ avatarAssistantKind: 'emoji', avatarAssistantEmoji: '"; } body{display:none} .x{' }), /display:none/)
-  assert.doesNotMatch(k.avatarCss({ avatarAssistantKind: 'image' }, { assistant: 'data:image/png;base64,AA"); body{display:none}' }), /display:none/)
+  assert.doesNotMatch(k.avatarCss({ avatarAssistantKind: 'emoji', avatarAssistantEmoji: '"; } body{display:none} .x{' }), /body\{display:none\}/)
+  assert.doesNotMatch(k.avatarCss({ avatarAssistantKind: 'image' }, { assistant: 'data:image/png;base64,AA"); body{display:none}' }), /body\{display:none\}/)
 })
 
 test('avatars: size is clamped 20-44 and css is always balanced', () => {
@@ -79,4 +79,20 @@ test('avatars: size is clamped 20-44 and css is always balanced', () => {
 
 test('look: lookCss output and avatar output can be joined without breaking either', () => {
   const css = [k.lookCss({ userBubble: 'soft' }), k.avatarCss({ avatarAssistantKind: 'emoji' })].filter(Boolean).join('\n'); assert.equal((css.match(/{/g) || []).length, (css.match(/}/g) || []).length)
+})
+
+test('avatars: a picture is never drawn on an empty or hidden reply row (it would shift the chat)', () => {
+  const css = k.avatarCss({ avatarAssistantKind: 'emoji', avatarUserKind: 'emoji' })
+  const reply = css.split('\n').find((l) => l.includes('data-chat-group-part'))
+  assert.match(reply, /:not\(:empty\)/); assert.match(reply, /:not\(:has\(> \[data-slot="conversation\.chat\.node"\]:empty\)\)/); assert.match(reply, /:not\(\[hidden\]\)/)
+  assert.ok(css.split('\n').find((l) => l.includes('data-chat-flow-kind="user"')), 'your own message rows are never empty, so they keep a plain selector')
+})
+
+test('avatars: pictures never take layout space (the chat must not shift when they appear)', () => {
+  const css = k.avatarCss({ avatarAssistantKind: 'emoji', avatarUserKind: 'emoji', avatarSize: 32 })
+  const rules = css.split('\n').filter((l) => l.includes('::before{content:'))
+  assert.equal(rules.length, 2)
+  for (const r of rules) { assert.match(r, /position:absolute/); assert.doesNotMatch(r, /margin|display:block|float|(^|[;{])height:auto/); assert.match(r, /pointer-events:none/) }
+  assert.match(css, /\{position:relative\}/, 'rows get a positioning context'); assert.match(css, /@media \(max-width:\d+px\)\{[^}]*display:none!important/, 'hidden when the window is too narrow for a side margin')
+  assert.equal(k.avatarCss({}), '', 'nothing at all when off')
 })

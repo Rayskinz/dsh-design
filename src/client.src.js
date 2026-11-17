@@ -608,6 +608,8 @@ window.__ModuleLoader__.load({
 			tintStyle.setAttribute('data-rayskinz-design', 'tint');
 			const avatarStyle = document.createElement('style');
 			avatarStyle.setAttribute('data-rayskinz-design', 'avatar');
+			// Write a style only when its text changed: re-writing identical CSS makes the browser re-check the whole page.
+			const setCss = (el, text) => { if (el.textContent !== text) el.textContent = text; };
 			const lookStyle = document.createElement('style');
 			lookStyle.setAttribute('data-rayskinz-design', 'look');
 			document.head.append(bgStyle, fxStyle, frameStyle, tintStyle, lookStyle, avatarStyle);
@@ -616,7 +618,7 @@ window.__ModuleLoader__.load({
 			let tinted = new Set();
 			function renderBorder(s) {
 				const css = borderCss(s, FRAME);
-				frameStyle.textContent = css;
+				setCss(frameStyle, css);
 				if (css && !frame) {
 					frame = document.createElement('div');
 					frame.id = FRAME;
@@ -642,10 +644,10 @@ window.__ModuleLoader__.load({
 			function applyTints(s) {
 				if (!s.tintEnabled || !s.tintRules.length) {
 					clearTints();
-					tintStyle.textContent = '';
+					setCss(tintStyle, '');
 					return;
 				}
-				tintStyle.textContent = TINT_CSS;
+				setCss(tintStyle, TINT_CSS);
 				const nextT = new Set(), nextB = new Set(), nextG = new Set();
 				const paint = (row, color) => {
 					if (getComputedStyle(row).position === 'static') row.style.position = 'relative';
@@ -684,16 +686,16 @@ window.__ModuleLoader__.load({
 			// Chat look: fonts, size, spacing, width, bubble. Size is measured from the app's own value with our override
 			// removed first, so "+2" always means two px above whatever the user chose in the app's settings.
 			function applyLook(s) {
-				lookStyle.textContent = '';
-				const cs = getComputedStyle(body);
-				const size = parseFloat(cs.getPropertyValue('--dsh-content-font-size')) || 14;
+				// The app writes its text size inline on <body>; our override lives in a stylesheet, so the inline value is
+				// always the app's own. (Reading the computed value would feed our own override back into itself.)
+				const size = parseFloat(body.style.getPropertyValue('--dsh-content-font-size')) || 14;
 				const accent = s.accentEnabled && /^#[0-9a-f]{6}$/i.test(s.accent || '') ? s.accent : '';
 				const text = accent ? (famContrast(accent, '#ffffff') >= famContrast(accent, '#111111') ? '#ffffff' : '#111111') : '';
-				lookStyle.textContent = lookCss({ ...s, accentText: text }, { size });
+				setCss(lookStyle, lookCss({ ...s, accentText: text }, { size }));
 			}			function applyAvatars(s) {
 				const st = store.get();
 				const species = st.pet ? (PET_SPECIES[st.pet.species] || PET_SPECIES.chick) : null;
-				avatarStyle.textContent = avatarCss(s, st.avatars, species ? species.emoji : '');
+				setCss(avatarStyle, avatarCss(s, st.avatars, species ? species.emoji : ''));
 			}
 			function applyAccent(s) {
 				const on = !!(s.accentEnabled && /^#[0-9a-f]{6}$/i.test(s.accent || ''));
@@ -812,22 +814,22 @@ window.__ModuleLoader__.load({
 					media.style.filter = s.blur > 0 ? 'blur(' + s.blur + 'px)' : '';
 					media.style.transform = s.blur > 0 ? 'scale(1.06)' : '';
 					dim.style.background = 'rgba(0,0,0,' + (s.dim / 100).toFixed(2) + ')';
-					bgStyle.textContent =
+					setCss(bgStyle,
 						'#' + ID + '{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;background:#000}' +
 						'#' + ID + ' img,#' + ID + ' video{width:100%;height:100%;object-fit:cover;display:block}' +
 						'#' + ID + ' div{position:absolute;inset:0}' +
-						'html,body,#root{background:transparent!important}';
+						'html,body,#root{background:transparent!important}');
 				} else {
 					if (box) {
 						box.remove();
 						box = media = dim = null;
 						mediaKey = '';
 					}
-					bgStyle.textContent = '';
+					setCss(bgStyle, '');
 				}
 				tint(on, s.panel);
 				const fx = allEffectsCss(s);
-				fxStyle.textContent = fx.kf + fx.rule;
+				setCss(fxStyle, fx.kf + fx.rule);
 				renderBorder(s);
 				applyTints(s);
 				applyAccent(s);
