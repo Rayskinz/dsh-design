@@ -1,4 +1,4 @@
-﻿import test from 'node:test'
+import test from 'node:test'
 import assert from 'node:assert/strict'
 import * as g from '../src/games.js'
 
@@ -166,4 +166,55 @@ test('rewards: capped and never negative', () => {
   assert.equal(g.gameReward('snake', 1e9).coins, 12); assert.equal(g.gameReward('tetris', 1e9).coins, 15); assert.equal(g.gameReward('tetris', 1e9).xp, 30)
   assert.deepEqual(g.gameReward('snake', -50), { coins: 0, xp: 2 })
   assert.equal(g.gameReward('tetris', 4000).coins, 10)
+})
+
+test('buddy: sits right of the chat box, bottom aligned, when there is room', () => {
+  const card = { left: 300, top: 600, right: 900, bottom: 700 }
+  const p = g.placeBuddy(card, 1100, 96, 130, 1200, 800)
+  assert.equal(p.mode, 'beside'); assert.equal(p.x, 910); assert.equal(p.y, 570)
+})
+
+test('buddy: perches on the top-right corner when the column is too narrow', () => {
+  const card = { left: 20, top: 600, right: 380, bottom: 700 }
+  const p = g.placeBuddy(card, 400, 96, 130, 420, 800)
+  assert.equal(p.mode, 'above'); assert.equal(p.x, 284); assert.equal(p.y, 464)
+})
+
+test('buddy: never leaves the viewport, whatever the inputs', () => {
+  const rng = g.makeRng(5)
+  for (let i = 0; i < 500; i++) {
+    const vw = 300 + Math.floor(rng() * 1500), vh = 300 + Math.floor(rng() * 900)
+    const l = Math.floor(rng() * vw), t = Math.floor(rng() * vh)
+    const card = { left: l, top: t, right: l + Math.floor(rng() * 800), bottom: t + Math.floor(rng() * 300) }
+    const p = g.placeBuddy(card, card.right + Math.floor(rng() * 400), 96, 130, vw, vh)
+    assert.ok(p.x >= 8 && p.y >= 8, 'top-left'); assert.ok(p.x + 96 <= Math.max(vw - 8, 104) && p.y + 130 <= Math.max(vh - 8, 138), 'bottom-right')
+  }
+})
+
+test('buddy: edge of the room check is exact', () => {
+  const card = { left: 0, top: 500, right: 500, bottom: 600 }
+  assert.equal(g.placeBuddy(card, 500 + 96 + 10, 96, 100, 2000, 900).mode, 'beside')
+  assert.equal(g.placeBuddy(card, 500 + 96 + 9, 96, 100, 2000, 900).mode, 'above')
+})
+
+test('window opens above the pet with a 12px gap, never touching it', () => {
+  const pet = { left: 960, top: 610, right: 1052, bottom: 728 }
+  const p = g.placeAbove(pet, 300, 280, 1100, 760)
+  assert.equal(p.y + 280, 610 - 12); assert.equal(p.x + 300, 1052)
+})
+
+test('window goes left of the pet when there is no room above, and never overlaps it', () => {
+  const pet = { left: 700, top: 100, right: 792, bottom: 218 }
+  const p = g.placeAbove(pet, 300, 280, 1100, 760)
+  assert.ok(p.x + 300 + 12 <= 700, 'left of the pet with a gap'); assert.equal(p.y, 8, 'taller than the room above, so held at the top margin')
+})
+
+test('placeAbove stays on screen for random inputs', () => {
+  const rng = g.makeRng(8)
+  for (let i = 0; i < 500; i++) {
+    const vw = 340 + Math.floor(rng() * 1500), vh = 340 + Math.floor(rng() * 900)
+    const l = Math.floor(rng() * (vw - 92)), t = Math.floor(rng() * (vh - 118))
+    const p = g.placeAbove({ left: l, top: t, right: l + 92, bottom: t + 118 }, 300, 300, vw, vh)
+    assert.ok(p.x >= 8 && p.y >= 8 && p.x + 300 <= Math.max(vw - 8, 308) && p.y + 300 <= Math.max(vh - 8, 308))
+  }
 })

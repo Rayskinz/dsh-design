@@ -248,3 +248,21 @@ export function placeWindow(saved, w, h, vw, vh) {
   const placed = saved && saved.x >= 0 && saved.y >= 0
   return clampWindow(placed ? saved.x : vw - w - 24, placed ? saved.y : vh - h - 110, w, h, vw, vh)
 }
+// ------------------------------------------------------------ pet buddy spot
+// The buddy sits to the right of the chat box, bottom edges lined up. If the column has
+// no room on that side, it perches on the box's top-right corner instead. Rects are
+// { left, top, right, bottom } in viewport pixels; `roomRight` is how far the buddy may
+// reach (the chat column's right edge). Always returns a spot fully inside the viewport.
+export function placeBuddy(card, roomRight, w, h, vw, vh, gap = 10, margin = 8) {
+  const limit = Math.min(roomRight, vw - 4)
+  const beside = limit - card.right >= w + gap
+  const raw = beside ? { x: card.right + gap, y: card.bottom - h } : { x: card.right - w, y: card.top - h - 6 }
+  const clamped = clampWindow(raw.x, raw.y, w, h, vw, vh, margin)
+  return { ...clamped, mode: beside ? 'beside' : 'above' }
+}
+// Where the game window opens the first time: right-aligned above the pet, 12px clear of it.
+// If there is no room above, to the left of the pet with bottoms aligned. Always fully on screen.
+export function placeAbove(anchor, w, h, vw, vh, gap = 12, margin = 8) {
+  if (anchor.top - gap - h >= margin) return clampWindow(anchor.right - w, anchor.top - gap - h, w, h, vw, vh, margin)
+  return clampWindow(anchor.left - gap - w, anchor.bottom - h, w, h, vw, vh, margin)
+}

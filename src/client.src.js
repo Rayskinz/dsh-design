@@ -13,7 +13,7 @@ window.__ModuleLoader__.load({
 		const DEFAULTS = {
 			bgEnabled: true, panel: 55, dim: 0, blur: 0, effect: 'off', speed: 3, effectColor: '#ff3030', giphyKeySet: false,
 			borderStyle: 'off', borderWidth: 2, borderColor: '#7c5cff', borderOnlyWorking: false,
-			tintEnabled: false, petEnabled: false, windowX: -1, windowY: -1, windowTab: 'pet', windowMin: false, windowSize: 1,
+			tintEnabled: false, petEnabled: false, windowX: -1, windowY: -1, windowTab: 'pet', windowMin: false, windowOpen: false, windowSize: 1,
 			tintRules: [
 				{ match: 'opus', color: '#a78bfa' }, { match: 'sonnet', color: '#60a5fa' }, { match: 'haiku', color: '#4ade80' },
 				{ match: 'astra', color: '#fb923c' }, { match: 'sol', color: '#facc15' }, { match: 'luna', color: '#2dd4bf' },
@@ -205,7 +205,7 @@ window.__ModuleLoader__.load({
 
 		// ------------------------------------------------------------------ store
 		function createStore(rpc) {
-			let state = { ready: false, busy: '', error: '', settings: DEFAULTS, bg: { has: false }, pet: null, working: false, toast: '' };
+			let state = { ready: false, busy: '', error: '', settings: DEFAULTS, bg: { has: false }, pet: null, working: false, toast: '', buddy: null, say: '', perch: false };
 			const subs = new Set();
 			let saveTimer = 0;
 			const emit = () => subs.forEach((f) => f());
@@ -261,6 +261,7 @@ window.__ModuleLoader__.load({
 			}
 			let petTimer = 0;
 			let toastTimer = 0;
+			let sayTimer = 0;
 			function savePet() {
 				clearTimeout(petTimer);
 				petTimer = setTimeout(() => {
@@ -307,6 +308,17 @@ window.__ModuleLoader__.load({
 			};
 			return {
 				pet: petActions,
+				setPerch: (v) => { if (v !== state.perch) set({ perch: v }); },
+				say: (line, ms = 3200) => {
+					clearTimeout(sayTimer);
+					set({ say: line });
+					if (line) sayTimer = setTimeout(() => set({ say: '' }), ms);
+				},
+				setBuddy: (rect) => {
+					const a = state.buddy, b = rect;
+					if (a === b || (a && b && a.left === b.left && a.top === b.top && a.right === b.right && a.bottom === b.bottom)) return;
+					set({ buddy: b });
+				},
 				setWorking: (working) => {
 					if (working !== state.working) set({ working });
 				},
@@ -334,6 +346,7 @@ window.__ModuleLoader__.load({
 					clearTimeout(saveTimer);
 					clearTimeout(petTimer);
 					clearTimeout(toastTimer);
+					clearTimeout(sayTimer);
 				},
 			};
 		}
@@ -747,6 +760,135 @@ window.__ModuleLoader__.load({
 @media (prefers-reduced-motion:reduce){.rzp-face{animation:none!important}}
 `;
 
+		// ---------------------------------------------------------------- buddy
+		// The pet itself: a small figure that sits to the right of the chat box. Clicking it
+		// pats it; the little button opens the Pet / Snake / Tetris window.
+		const BUDDY_W = 92, BUDDY_H = 118;
+		const BUDDY_CSS = `
+.rzb{position:fixed;z-index:9990;width:92px;height:118px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;user-select:none;pointer-events:none}
+.rzb>*{pointer-events:auto}
+.rzb-pet{position:relative;width:64px;height:64px;font-size:46px;line-height:56px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;padding:0;cursor:pointer;border-radius:50%;transition:transform .12s}
+.rzb-pet:active{transform:scale(.88)}
+.rzb-pet:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+.rzb-pet[data-mood="idle"] .rzp-face,.rzb-pet[data-mood="happy"] .rzp-face{animation:rzpBob 2.4s ease-in-out infinite}
+.rzb-pet[data-mood="working"] .rzp-face{animation:rzpHop .6s ease-in-out infinite}
+.rzb-pet[data-mood="hungry"] .rzp-face{animation:rzpShake .9s ease-in-out infinite}
+.rzb-pet[data-mood="sad"] .rzp-face{filter:grayscale(.7);transform:translateY(2px)}
+.rzb .rzp-bubble{position:absolute;top:-6px;right:-4px;font-size:18px}
+.rzb-chip{display:flex;align-items:center;justify-content:center;gap:4px;max-width:100%;min-height:26px;padding:0 10px;border:0.5px solid var(--dsw-alias-border-l2);border-radius:999px;background:var(--dsw-alias-bg-layer-1);color:color-mix(in srgb,var(--dsw-alias-label-primary) 78%,var(--dsw-alias-bg-layer-1));font:inherit;font-size:12px;line-height:16px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
+.rzb-chip:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary) 7%,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-label-primary)}
+.rzb-chip:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+.rzb-fig{position:relative;display:flex;justify-content:center}
+.rzb-perch{box-sizing:border-box;display:flex;justify-content:flex-end;align-items:center;gap:6px;width:100%;max-width:var(--dsh-composer-card-max-width,100%);height:38px;margin:0 auto 6px;user-select:none}
+.rzb-perch .rzb-pet{width:34px;height:34px;font-size:26px;line-height:32px}
+.rzb-perch .rzp-bubble{font-size:12px;top:-4px;right:-4px}
+.rzb-chip-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.rzb:not(.rzb-perch) .rzb-chip{min-width:92px}
+.rzb-chip[data-say]{border-color:var(--dsw-alias-label-secondary);color:var(--dsw-alias-label-primary);font-weight:600}
+.rzb-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media (prefers-reduced-motion:reduce){.rzb .rzp-face{animation:none!important}}
+`;
+		function Buddy(p) {
+			const { store } = p;
+			const st = useStore(store);
+			const s = st.settings;
+			const pet = st.pet;
+			const [spot, setSpot] = useState(null);
+			const lastMood = useRef('');
+			useEffect(() => {
+				const id = setInterval(() => store.pet.tick(), 30000);
+				return () => clearInterval(id);
+			}, [store]);
+			// Follow the chat box. It moves with the sidebar, window size and font size, so measure it,
+			// not guess. No chat box on screen (settings page, empty state) means no buddy.
+			useEffect(() => {
+				if (!s.petEnabled) return undefined;
+				let raf = 0;
+				const measure = () => {
+					raf = 0;
+					const card = document.querySelector('[data-composer-card]');
+					if (!card) return setSpot((cur) => (cur === null ? cur : null));
+					const r = card.getBoundingClientRect();
+					if (r.width < 60 || r.height < 20) return setSpot((cur) => (cur === null ? cur : null));
+					const col = card.closest('[data-composer-dock]') ? null : null;
+					const root = card.parentElement ? card.parentElement.getBoundingClientRect() : r;
+					const scale = clamp(Number(s.windowSize) || 1, 0.8, 1.6);
+					const w = Math.round(BUDDY_W * Math.min(scale, 1.3)), hgt = Math.round(BUDDY_H * Math.min(scale, 1.3));
+					const box = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+					let w2 = w, h2 = hgt;
+					let spotNow = placeBuddy(box, Math.max(root.right, r.right), w2, h2, window.innerWidth, window.innerHeight);
+					if (spotNow.mode === 'above') {
+						// Perched on the corner: shrink so it covers as little of the chat as possible.
+						w2 = 128; h2 = 38;
+						spotNow = placeBuddy(box, Math.max(root.right, r.right), w2, h2, window.innerWidth, window.innerHeight);
+					}
+					setSpot((cur) => (cur && cur.x === spotNow.x && cur.y === spotNow.y && cur.mode === spotNow.mode && cur.w === w2 ? cur : { ...spotNow, w: w2, h: h2 }));
+				};
+				const queue = () => { if (!raf) raf = requestAnimationFrame(measure); };
+				measure();
+				const mo = new MutationObserver(queue);
+				mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'data-sidebar-open', 'data-sidebar-drawer', 'aria-expanded'] });
+				const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(queue) : null;
+				if (ro) ro.observe(document.body);
+				// A sidebar sliding open moves the chat box without adding or removing anything, so
+				// also follow transitions and, as a safety net, re-check twice a second.
+				document.addEventListener('transitionend', queue, true);
+				document.addEventListener('animationend', queue, true);
+				window.addEventListener('resize', queue);
+				const poll = setInterval(queue, 500);
+				return () => { if (raf) cancelAnimationFrame(raf); clearInterval(poll); mo.disconnect(); if (ro) ro.disconnect(); document.removeEventListener('transitionend', queue, true); document.removeEventListener('animationend', queue, true); window.removeEventListener('resize', queue); };
+			}, [s.petEnabled, s.windowSize]);
+			const mood = pet ? petMood(pet, st.working) : 'idle';
+			// A short comment when the mood changes (not on every render).
+			useEffect(() => {
+				if (!pet || lastMood.current === mood) return undefined;
+				const first = lastMood.current === '';
+				lastMood.current = mood;
+				if (first && (mood === 'idle' || mood === 'happy')) return undefined;
+				const line = { working: 'On it!', hungry: 'Feed me?', sad: 'Play with me?', happy: 'Happy!', idle: '' }[mood];
+				if (!line) return undefined;
+				store.say(line);
+				return undefined;
+			}, [mood, pet && pet.name]);
+			const shown = !!(s.petEnabled && pet && spot);
+			useEffect(() => {
+				store.setBuddy(shown ? { left: spot.x, top: spot.y, right: spot.x + spot.w, bottom: spot.y + spot.h } : null);
+			}, [shown, spot && spot.x, spot && spot.y, spot && spot.w, spot && spot.h]);
+			useEffect(() => () => store.setBuddy(null), []);
+			const perched = shown && spot.mode === 'above';
+			useEffect(() => { store.setPerch(perched); }, [perched]);
+			useEffect(() => () => store.setPerch(false), []);
+			if (!shown || perched) return null;
+			const sp = PET_SPECIES[pet.species] || PET_SPECIES.chick;
+			const k = spot.w / BUDDY_W;
+			const say = st.say;
+			return h('div', { className: 'rzb', 'data-mode': spot.mode, role: 'group', 'aria-label': 'Pet ' + pet.name, style: { left: spot.x, top: spot.y, width: spot.w, height: spot.h } },
+				h('style', null, PET_CSS + BUDDY_CSS),
+				h('div', { className: 'rzb-fig' },
+					h('button', { type: 'button', className: 'rzb-pet', 'data-mood': mood, 'aria-label': 'Pat ' + pet.name, title: pet.name + ' \u00B7 Lv ' + petLevel(pet.xp) + ' \u00B7 ' + pet.coins + ' coins', style: k === 1 ? undefined : { fontSize: 46 * k, width: 64 * k, height: 64 * k, lineHeight: 56 * k + 'px' }, onClick: () => store.pet.pat() },
+						h('span', { className: 'rzp-face' }, sp.emoji),
+						MOOD_BUBBLE[mood] ? h('span', { className: 'rzp-bubble', 'aria-hidden': true }, MOOD_BUBBLE[mood]) : null)),
+				h('button', { type: 'button', className: 'rzb-chip', 'data-say': (st.toast || say) ? '' : undefined, 'aria-label': s.windowOpen ? 'Close pet and games window' : 'Open pet and games window', 'aria-expanded': !!s.windowOpen, onClick: () => store.setSettings({ windowOpen: !s.windowOpen }) }, h('span', { className: 'rzb-chip-text', 'aria-hidden': true }, st.toast || say || pet.name), h('span', { 'aria-hidden': true }, s.windowOpen ? '\u25BE' : '\u25B8')),
+				h('span', { className: 'rzb-sr', role: 'status' }, st.toast || say || ''));
+		}
+		// When the chat box has no free space on its right, the pet takes its own row in the app's
+		// own dock above the box (conversation.input.dock), so it reserves space instead of covering messages.
+		function PerchDock(p) {
+			const { store } = p;
+			const st = useStore(store);
+			const s = st.settings;
+			const pet = st.pet;
+			if (!s.petEnabled || !pet || !st.perch) return null;
+			const mood = petMood(pet, st.working);
+			const sp = PET_SPECIES[pet.species] || PET_SPECIES.chick;
+			return h('div', { className: 'rzb-perch', role: 'group', 'aria-label': 'Pet ' + pet.name },
+				h('style', null, PET_CSS + BUDDY_CSS),
+				h('button', { type: 'button', className: 'rzb-chip', 'data-say': (st.toast || st.say) ? '' : undefined, 'aria-label': s.windowOpen ? 'Close pet and games window' : 'Open pet and games window', 'aria-expanded': !!s.windowOpen, onClick: () => store.setSettings({ windowOpen: !s.windowOpen }) }, h('span', { className: 'rzb-chip-text', 'aria-hidden': true }, st.toast || st.say || pet.name), h('span', { 'aria-hidden': true }, s.windowOpen ? '\u25BE' : '\u25B8')),
+				h('span', { className: 'rzb-sr', role: 'status' }, st.toast || st.say || ''),
+				h('button', { type: 'button', className: 'rzb-pet', 'data-mood': mood, 'aria-label': 'Pat ' + pet.name, title: pet.name + ' \u00B7 Lv ' + petLevel(pet.xp) + ' \u00B7 ' + pet.coins + ' coins', onClick: () => store.pet.pat() },
+					h('span', { className: 'rzp-face' }, sp.emoji),
+					MOOD_BUBBLE[mood] ? h('span', { className: 'rzp-bubble', 'aria-hidden': true }, MOOD_BUBBLE[mood]) : null));
+		}
 		// ------------------------------------------------------------ game window
 		const WIN_W = 300;
 		const TABS = [['pet', 'Pet'], ['snake', 'Snake'], ['tetris', 'Tetris']];
@@ -994,13 +1136,15 @@ window.__ModuleLoader__.load({
 				const id = setInterval(() => store.pet.tick(), 30000);
 				return () => clearInterval(id);
 			}, [store]);
-			if (!s.petEnabled || !pet) return null;
+			if (!s.petEnabled || !pet || !s.windowOpen) return null;
 			const minimized = s.windowMin;
 			const scale = clamp(Number(s.windowSize) || 1, 0.8, 1.6);
 			const width = WIN_W * scale;
 			const estimate = minimized ? 42 * scale : (s.windowTab === 'pet' ? 313 : s.windowTab === 'snake' ? 448 : 470) * scale;
 			const height = measured || estimate;
-			const pos = drag || placeWindow({ x: s.windowX, y: s.windowY }, width, height, vp.w, vp.h);
+			const unplaced = !(s.windowX >= 0 && s.windowY >= 0);
+			const buddyRect = unplaced ? st.buddy : null;
+			const pos = drag || (buddyRect ? placeAbove(buddyRect, width, height, vp.w, vp.h) : placeWindow({ x: s.windowX, y: s.windowY }, width, height, vp.w, vp.h));
 			const startDrag = (e) => {
 				if (e.button !== undefined && e.button !== 0) return;
 				if (e.target.closest && e.target.closest('button')) return;
@@ -1039,7 +1183,7 @@ window.__ModuleLoader__.load({
 						? h('span', { className: 'rzw-mini' }, h('span', { 'aria-hidden': true, style: { fontSize: 18 } }, sp.emoji), pet.name)
 						: h('div', { className: 'rzw-tabs', role: 'tablist' }, TABS.map(([id, label]) => h('button', { key: id, type: 'button', role: 'tab', 'aria-selected': tab === id, className: 'rzw-tab', onClick: () => store.setSettings({ windowTab: id }) }, label))),
 					h('button', { type: 'button', className: 'rzw-ico', 'aria-label': minimized ? 'Expand window' : 'Minimize window', title: minimized ? 'Expand' : 'Minimize', onClick: () => store.setSettings({ windowMin: !minimized }) }, ico(minimized ? ICONS.up : ICONS.min)),
-					h('button', { type: 'button', className: 'rzw-ico', 'aria-label': 'Close window', title: 'Close (turn on again in Design Options)', onClick: () => store.setSettings({ petEnabled: false }) }, ico(ICONS.close))),
+					h('button', { type: 'button', className: 'rzw-ico', 'aria-label': 'Close window', title: 'Close (click your pet to open it again)', onClick: () => store.setSettings({ windowOpen: false }) }, ico(ICONS.close))),
 				minimized ? null
 					: tab === 'snake' ? h(SnakePanel, { key: 'snake', store, best: (pet.best && pet.best.snake) || 0 })
 					: tab === 'tetris' ? h(TetrisPanel, { key: 'tetris', store, best: (pet.best && pet.best.tetris) || 0 })
@@ -1054,10 +1198,10 @@ window.__ModuleLoader__.load({
 			useEffect(() => { if (pet && name === '') setName(pet.name); }, [pet && pet.name]);
 			return h('section', { className: 'rzd-card', 'aria-label': 'Pet' },
 				h('div', { className: 'rzd-row' },
-					h('div', { className: 'rzd-col' }, h('h3', { className: 'rzd-title' }, 'Pet'), h('div', { className: 'rzd-sub' }, 'A small window you can drag anywhere. It stays with you in every chat. Pet, Snake and Tetris. Finished chats and games earn coins; spend them on food and new friends. The pet never dies, it just gets sad.')),
-					h(Switch, { checked: s.petEnabled, label: 'Show pet and games window', onChange: (v) => store.setSettings({ petEnabled: v }) })),
+					h('div', { className: 'rzd-col' }, h('h3', { className: 'rzd-title' }, 'Pet'), h('div', { className: 'rzd-sub' }, 'Your pet sits to the right of the chat box. Click it to pat it, or click its name to open a window you can drag anywhere, with Pet, Snake and Tetris. Finished chats and games earn coins; spend them on food and new friends. The pet never dies, it just gets sad.')),
+					h(Switch, { checked: s.petEnabled, label: 'Show pet', onChange: (v) => store.setSettings({ petEnabled: v }) })),
 				s.petEnabled ? h(Slider, { label: 'Window size', min: 0.8, max: 1.6, step: 0.1, value: s.windowSize, unit: 'x', onChange: (v) => store.setSettings({ windowSize: v }) }) : null,
-				s.petEnabled ? h('div', { className: 'rzd-row', style: { justifyContent: 'flex-start' } }, h('button', { type: 'button', className: 'rzd-btn', onClick: () => store.setSettings({ windowX: -1, windowY: -1, windowMin: false }) }, 'Bring window back to the corner'), h('span', { className: 'rzd-credit' }, 'Drag the title bar to move it. Arrow keys move it too.')) : null,
+				s.petEnabled ? h('div', { className: 'rzd-row', style: { justifyContent: 'flex-start' } }, h('button', { type: 'button', className: 'rzd-btn', onClick: () => store.setSettings({ windowOpen: !s.windowOpen, windowX: -1, windowY: -1, windowMin: false }) }, s.windowOpen ? 'Close the window and reset its spot' : 'Open the window'), h('span', { className: 'rzd-credit' }, 'Drag the window by its title bar. Arrow keys move it too.')) : null,
 				pet ? h('div', { className: 'rzd-col' },
 					h('div', { className: 'rzd-row', style: { justifyContent: 'flex-start' } },
 						h('span', { className: 'rzd-sub' }, 'Name'),
@@ -1164,12 +1308,12 @@ window.__ModuleLoader__.load({
 					h(PetCard, { store }),
 					h('div', { className: 'rzd-row' },
 						h('button', { type: 'button', className: 'rzd-btn', onClick: () => store.setSettings({ ...DEFAULTS, giphyKeySet: undefined, petEnabled: store.get().settings.petEnabled, windowX: store.get().settings.windowX, windowY: store.get().settings.windowY }) }, 'Reset all options'),
-						h('span', { className: 'rzd-credit' }, 'Rayskinz DSH Design 0.5.0')));
+						h('span', { className: 'rzd-credit' }, 'Rayskinz DSH Design 0.5.1')));
 			};
 		}
 
 		return {
-			__test: { centerPiece, PetPanel, GameWindow, effectCss, borderCss, tintFor, hexRgb, clamp, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel, themeFrom, exportTheme, parseTheme, PRESETS },
+			__test: { PerchDock, Buddy, centerPiece, PetPanel, GameWindow, effectCss, borderCss, tintFor, hexRgb, clamp, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel, themeFrom, exportTheme, parseTheme, PRESETS },
 			inject: ['slots', 'connection'],
 			apply(ctx) {
 				const store = createStore(ctx.get('connection').rpc);
@@ -1180,8 +1324,10 @@ window.__ModuleLoader__.load({
 				ctx.slots.inject('settings.section', () =>
 					ctx.slots.register({ name: 'settings.section', id: 'rayskinz-design', order: 30, label: () => 'Design Options' }, Section));
 				const Floating = function GameSeat() {
-					return h(GameWindow, { store });
+					return h(React.Fragment, null, h(Buddy, { store }), h(GameWindow, { store }));
 				};
+				ctx.slots.inject('conversation.input.dock', () =>
+					ctx.slots.register({ name: 'conversation.input.dock', id: 'rayskinz-perch', order: 50 }, function PerchSeat() { return h(PerchDock, { store }); }));
 				ctx.slots.inject('shell.overlay', () =>
 					ctx.slots.register({ name: 'shell.overlay', id: 'rayskinz-game-window', order: 40 }, Floating));
 				ctx.effect(() => {

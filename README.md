@@ -10,7 +10,8 @@ A design plugin for DeepSeek Harness (DSH). Backgrounds, a wallpaper and GIF hub
 - Window border: neon, rainbow, gold, stripes or fire, optionally only while a chat is working.
 - Chat colors: color a sidebar chat by a word in its title, so sub-chats named after a model (Opus, Sonnet, Haiku...) are easy to tell apart. Whole words only.
 - Themes: four one-click looks (Avatar, Cyberpunk, Minimal, Party) and Copy my look / Paste a theme to share yours as text. Themes never include your background, pet or GIPHY key.
-- Pet and games window: a small draggable window that floats over every chat (drag the title bar, or use the arrow keys on it; minimize or close it; resize it with a slider). Tabs: Pet (feed it, play with it, unlock new species with coins), Snake and Tetris (keyboard and touch controls, best scores saved). Finished chats and games earn coins. The pet never dies.
+- Pet: sits to the right of the chat box, bottom edges lined up, and follows the box when the layout changes. If there is no room on the right it takes its own small row just above the box instead, so it never covers messages. Click it to pat it; its name chip shows what it is saying and opens the games window.
+- Pet and games window: a small draggable window (drag the title bar, or use the arrow keys on it; minimize or close it; resize it with a slider). Tabs: Pet (feed it, play with it, unlock new species with coins), Snake and Tetris (keyboard and touch controls, best scores saved). Finished chats and games earn coins. The pet never dies.
 
 More is planned (pet mini-games, sound). See the issues.
 
