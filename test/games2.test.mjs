@@ -269,3 +269,8 @@ test('pong: fuzz - 200 seeded games never produce NaN or leave the field', () =>
     }
   }
 })
+
+test('mines: score pays a win with a speed bonus, a loss only a little, and is never negative', () => {
+  const won = { status: 'won', mines: 10, opened: 71 }, lost = { status: 'lost', mines: 10, opened: 30 }
+  assert.equal(g.minesScore(won, 0), 100 + 300 + 20); assert.equal(g.minesScore(won, 9999), 120); assert.equal(g.minesScore(lost, 5), 15); assert.equal(g.minesScore({ status: 'playing', mines: 1, opened: 5 }, 5), 0); assert.equal(g.minesScore(won, NaN), 420)
+})

@@ -146,6 +146,12 @@ function minesOpen(s, list, rng) {
   return { ...s, cells, status, opened, flags }
 }
 
+// Score for the reward and the best list: a win pays 100 + a speed bonus + 2 per mine; a loss only counts what you opened.
+export function minesScore(s, seconds) {
+  const sec = Math.max(0, Math.floor(Number.isFinite(seconds) ? seconds : 0))
+  return s.status === 'won' ? 100 + Math.max(0, 300 - sec) + s.mines * 2 : s.status === 'lost' ? Math.floor(s.opened / 2) : 0
+}
+
 const minesDone = (s) => s.status === 'won' || s.status === 'lost'
 
 export function minesReveal(s, x, y, rng) {

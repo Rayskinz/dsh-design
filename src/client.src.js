@@ -11,7 +11,7 @@ window.__ModuleLoader__.load({
 		const CHANNEL = '/api';
 		const PREFIX = 'rayskinz-design.';
 		const DEFAULTS = {
-			bgEnabled: true, panel: 55, dim: 0, blur: 0, effect: 'off', speed: 3, effectColor: '#ff3030', giphyKeySet: false,
+			bgEnabled: true, panel: 55, dim: 0, blur: 0, effect: 'off', speed: 3, effectColor: '#60a5fa', giphyKeySet: false,
 			borderStyle: 'off', borderWidth: 2, borderColor: '#7c5cff', borderOnlyWorking: false,
 			intensity: 70, stateEffects: { warning: 'pulse', error: 'off', done: 'off' }, stateColors: { warning: '#fbbf24', error: '#f87171', done: '#4ade80' },
 			celebrate: 'off', celebrateOnGame: true, accent: '', accentEnabled: false, fontFamily: 'default', fontSize: 0, lineSpacing: 0, userBubble: 'default', chatWidth: 0, familyTint: true, lineageBadges: true,
@@ -44,7 +44,7 @@ window.__ModuleLoader__.load({
 			{ key: 'error', label: 'Error', hint: 'Something went wrong' },
 			{ key: 'done', label: 'Finished', hint: 'A chat that completed' },
 		];
-		const STATE_EFFECT_LIST = [['off', 'Off'], ['pulse', 'Pulse'], ['scanner', 'Scanner'], ['ember', 'Ember'], ['rainbow', 'Rainbow']];
+		const STATE_EFFECT_LIST = [['off', 'Off'], ['pulse', 'Pulse'], ['scanner', 'Scanner'], ['ember', 'Ember']];
 		const CELEBRATIONS = [['off', 'Off'], ['confetti', 'Confetti'], ['sparkles', 'Sparkles'], ['hearts', 'Hearts']];
 		const RAINBOW = ['255,60,60', '255,170,40', '255,235,60', '60,230,110', '60,170,255', '170,90,255'];
 		const WORKING = '[role="treeitem"]:has(svg[data-state="ongoing"])';
@@ -72,7 +72,7 @@ window.__ModuleLoader__.load({
 			const c = hexRgb(o.color || s.effectColor);
 			const n = o.name || 'rzd';
 			const a = (v) => (v * (0.35 + k * 0.9)).toFixed(3);
-			const px = (v) => Math.round(v * (0.4 + k * 0.9));
+			const px = (v) => Math.max(1, Math.round(v * (0.25 + k * 0.5)));
 			const iconOn = (color) => icon + '{color:' + color + '!important;filter:drop-shadow(0 0 ' + px(4) + 'px ' + color + ')}';
 			if (effect === 'rainbow') {
 				const stops = RAINBOW.concat(RAINBOW[0]).map((x) => 'rgba(' + x + ',' + a(0.38) + ')').join(',');
@@ -95,28 +95,29 @@ window.__ModuleLoader__.load({
 				};
 			}
 			if (effect === 'ember') {
+				// A state ember is tinted from the state's own hue only; the working ember stays orange.
+				const hot = o.color ? c : '255,120,30', warm = o.color ? c : '255,170,40', deep = o.color ? c : '255,80,0', low = o.color ? c : '255,60,0', mid = o.color ? c : '255,90,20', top = o.color ? c : '255,110,20';
 				return {
-					kf: '@keyframes ' + n + 'Ember{0%,100%{box-shadow:0 0 ' + px(8) + 'px 1px rgba(255,120,30,' + a(0.6) + '),inset 0 -6px ' + px(10) + 'px rgba(255,80,0,' + a(0.25) + ')}30%{box-shadow:0 0 ' + px(14) + 'px 3px rgba(255,170,40,' + a(0.85) + '),inset 0 -10px ' + px(14) + 'px rgba(255,120,0,' + a(0.35) + ')}60%{box-shadow:0 0 ' + px(10) + 'px 2px rgba(255,90,20,' + a(0.7) + '),inset 0 -4px ' + px(8) + 'px rgba(255,60,0,' + a(0.2) + ')}}',
-					rule: sel + '{background:linear-gradient(0deg,rgba(255,110,20,' + a(0.28) + '),rgba(255,60,0,' + a(0.06) + '))!important;border-radius:8px;animation:' + n + 'Ember ' + (d * 0.4).toFixed(2) + 's ease-in-out infinite}' + iconOn('#ff8a2a'),
+					kf: '@keyframes ' + n + 'Ember{0%,100%{box-shadow:0 0 ' + px(8) + 'px 1px rgba(' + hot + ',' + a(0.6) + '),inset 0 -6px ' + px(10) + 'px rgba(' + deep + ',' + a(0.25) + ')}30%{box-shadow:0 0 ' + px(14) + 'px 3px rgba(' + warm + ',' + a(0.85) + '),inset 0 -10px ' + px(14) + 'px rgba(' + hot + ',' + a(0.35) + ')}60%{box-shadow:0 0 ' + px(10) + 'px 2px rgba(' + mid + ',' + a(0.7) + '),inset 0 -4px ' + px(8) + 'px rgba(' + low + ',' + a(0.2) + ')}}',
+					rule: sel + '{background:linear-gradient(0deg,rgba(' + top + ',' + a(0.28) + '),rgba(' + low + ',' + a(0.06) + '))!important;border-radius:8px;animation:' + n + 'Ember ' + (d * 0.4).toFixed(2) + 's ease-in-out infinite}' + iconOn(o.color ? 'rgb(' + c + ')' : '#ff8a2a'),
 				};
-			}
-			if (effect === 'aurora') {
+			}			if (effect === 'aurora') {
 				return {
 					kf: '@keyframes ' + n + 'Aurora{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}',
 					rule: sel + '{background-color:transparent!important;background-image:linear-gradient(115deg,rgba(52,211,153,' + a(0.32) + '),rgba(56,189,248,' + a(0.26) + '),rgba(167,139,250,' + a(0.34) + '),rgba(52,211,153,' + a(0.28) + '))!important;background-size:300% 100%!important;border-radius:8px;box-shadow:0 0 ' + px(12) + 'px rgba(94,234,212,' + a(0.28) + ');animation:' + n + 'Aurora ' + (d * 2.2).toFixed(2) + 's ease-in-out infinite}' + iconOn('#5eead4'),
 				};
 			}
 			if (effect === 'matrix') {
-				const g = 'rgba(34,255,120,';
+				const g = 'rgba(34,255,120,'; const ttl = sel + ' [class*="title"]';
 				return {
 					kf: '@keyframes ' + n + 'Rain{0%{background-position:0 0,0 0}100%{background-position:0 18px,0 34px}}',
-					rule: sel + '{background-color:rgba(0,40,18,' + a(0.55) + ')!important;background-image:repeating-linear-gradient(180deg,' + g + a(0.55) + ') 0 2px,transparent 2px 7px),repeating-linear-gradient(90deg,transparent 0 5px,' + g + a(0.22) + ') 5px 6px)!important;background-size:100% 18px,12px 34px!important;border-radius:8px;box-shadow:0 0 ' + px(8) + 'px ' + g + a(0.4) + ');animation:' + n + 'Rain ' + (d * 0.35).toFixed(2) + 's linear infinite}' + iconOn('#22ff78'),
+					rule: sel + '{background-color:rgba(0,40,18,' + a(0.55) + ')!important;background-image:repeating-linear-gradient(180deg,' + g + a(0.3) + ') 0 2px,transparent 2px 7px),repeating-linear-gradient(90deg,transparent 0 5px,' + g + a(0.12) + ') 5px 6px)!important;background-size:100% 18px,12px 34px!important;border-radius:8px;box-shadow:0 0 ' + px(8) + 'px ' + g + a(0.4) + ');animation:' + n + 'Rain ' + (d * 0.35).toFixed(2) + 's linear infinite}' + ttl + '{background:rgba(0,28,12,.78);color:#d9ffe6!important;padding:0 5px;border-radius:4px}' + iconOn('#22ff78'),
 				};
 			}
 			if (effect === 'lightning') {
 				return {
 					kf: '@keyframes ' + n + 'Zap{0%,86%,100%{box-shadow:0 0 ' + px(4) + 'px rgba(147,197,253,' + a(0.18) + ');background:rgba(30,58,138,' + a(0.12) + ')}88%{box-shadow:0 0 ' + px(22) + 'px 5px rgba(224,242,254,' + a(1) + '),inset 0 0 ' + px(16) + 'px rgba(224,242,254,' + a(0.7) + ');background:rgba(186,230,253,' + a(0.45) + ')}90%{box-shadow:0 0 ' + px(6) + 'px rgba(147,197,253,' + a(0.3) + ');background:rgba(30,58,138,' + a(0.16) + ')}93%{box-shadow:0 0 ' + px(18) + 'px 3px rgba(191,219,254,' + a(0.9) + ');background:rgba(147,197,253,' + a(0.35) + ')}}',
-					rule: sel + '{background:rgba(30,58,138,' + a(0.12) + ')!important;border-radius:8px;animation:' + n + 'Zap ' + (d * 0.9).toFixed(2) + 's linear infinite}' + iconOn('#bfdbfe'),
+					rule: sel + '{background:rgba(30,58,138,' + a(0.12) + ')!important;border-radius:8px;animation:' + n + 'Zap ' + (d * 0.9).toFixed(2) + 's linear infinite}' + iconOn('#3b82f6') + icon + '{opacity:1!important}',
 				};
 			}
 			return { kf: '', rule: '' };
@@ -124,6 +125,7 @@ window.__ModuleLoader__.load({
 
 		// The working effect plus the optional looks for the other row states (waiting, error, done).
 		// Each state targets the sidebar dot the app already draws, so nothing here needs app internals.
+		const STATE_HUES = { warning: '#f59e0b', error: '#ef4444', done: '#22c55e' };
 		const STATE_SELECTORS = {
 			warning: ['[role="treeitem"]:has(svg[data-state="warning"])', '[role="treeitem"] svg[data-state="warning"]'],
 			error: ['[role="treeitem"]:has(svg[data-state="error"])', '[role="treeitem"] svg[data-state="error"]'],
@@ -136,7 +138,7 @@ window.__ModuleLoader__.load({
 				const effect = s.stateEffects && s.stateEffects[key];
 				if (!effect || effect === 'off') continue;
 				const sel = STATE_SELECTORS[key];
-				const part = effectCss(s, sel[0], sel[1], { effect, color: s.stateColors && s.stateColors[key], name: 'rzd' + key[0].toUpperCase() + key.slice(1), intensity: Math.min(s.intensity !== undefined ? s.intensity : 70, 80) });
+				const part = effectCss(s, sel[0], sel[1], { effect, color: (s.stateColors && /^#[0-9a-f]{6}$/i.test(s.stateColors[key] || '') ? s.stateColors[key] : STATE_HUES[key]), name: 'rzd' + key[0].toUpperCase() + key.slice(1), intensity: Math.min(s.intensity !== undefined ? s.intensity : 70, 80) });
 				kf += part.kf; rule += part.rule;
 			}
 			return { kf, rule };
@@ -340,6 +342,7 @@ window.__ModuleLoader__.load({
 				savePet();
 				if (message) toast(message);
 			}
+			state.burstNow = (kind) => set({ burst: { id: (state.burst ? state.burst.id : 0) + 1, kind, at: null } });
 			const petActions = {
 				feed: () => (state.pet && state.pet.coins >= FEED_COST ? pet(petFeed, 'Nom nom') : toast('Not enough coins. Finished chats earn them.')),
 				play: () => pet(petPlay, 'Wheee'),
@@ -368,6 +371,7 @@ window.__ModuleLoader__.load({
 			};
 			return {
 				pet: petActions,
+				celebrateGame: () => { if (state.settings.celebrateOnGame) { const k = state.settings.celebrate; if (k && k !== 'off') state.burstNow(k); } },
 				celebrate: (kindOverride, at) => {
 					const kind = kindOverride || state.settings.celebrate;
 					if (!kind || kind === 'off' || !FX_KINDS.includes(kind)) return;
@@ -1000,7 +1004,9 @@ window.__ModuleLoader__.load({
 					const r = card ? card.getBoundingClientRect() : null;
 					return r ? { x: r.left + r.width / 2, y: r.top } : { x: W / 2, y: H * 0.8 };
 				})();
-				let parts = fxBurst(live.kind, makeRng((Date.now() ^ 0x85ebca6b) >>> 0), at.x, at.y, W, H);
+				const bgc = (getComputedStyle(document.body).getPropertyValue('--dsw-alias-bg-base') || '').match(/\d+/g) || [255, 255, 255];
+				const light = (Number(bgc[0]) * 299 + Number(bgc[1]) * 587 + Number(bgc[2]) * 114) / 1000 > 140;
+				let parts = fxBurst(live.kind, makeRng((Date.now() ^ 0x85ebca6b) >>> 0), at.x, at.y, W, H, light);
 				let last = performance.now(), raf = 0, stopped = false;
 				const heart = (x, y, s) => { c.beginPath(); c.moveTo(x, y + s * 0.3); c.bezierCurveTo(x, y - s * 0.2, x - s * 0.6, y - s * 0.2, x - s * 0.6, y + s * 0.15); c.bezierCurveTo(x - s * 0.6, y + s * 0.5, x, y + s * 0.7, x, y + s * 0.95); c.bezierCurveTo(x, y + s * 0.7, x + s * 0.6, y + s * 0.5, x + s * 0.6, y + s * 0.15); c.bezierCurveTo(x + s * 0.6, y - s * 0.2, x, y - s * 0.2, x, y + s * 0.3); c.fill(); };
 				const star = (s) => { c.beginPath(); for (let i = 0; i < 8; i++) { const r = i % 2 ? s * 0.28 : s * 0.7, a = (i * Math.PI) / 4; c.lineTo(Math.cos(a) * r, Math.sin(a) * r); } c.closePath(); c.fill(); };
@@ -1021,11 +1027,13 @@ window.__ModuleLoader__.load({
 				return () => { stopped = true; cancelAnimationFrame(raf); };
 			}, [live]);
 			if (!live) return null;
-			return h('canvas', { ref: cv, 'aria-hidden': true, style: { position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 10001, pointerEvents: 'none' } });
+			return h('canvas', { ref: cv, 'aria-hidden': true, style: { position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 10001, pointerEvents: 'none', filter: 'drop-shadow(0 0 1px rgba(0,0,0,.3))' } });
 		}
 		// ------------------------------------------------------------ game window
 		const WIN_W = 300;
-		const TABS = [['pet', 'Pet'], ['snake', 'Snake'], ['tetris', 'Tetris']];
+		const TABS = [['pet', 'Pet'], ['snake', 'Snake'], ['tetris', 'Tetris'], ['g2048', '2048'], ['mines', 'Mines'], ['pong', 'Pong']];
+		const TILE_COLORS = { 0: [null, 'inherit'], 2: ['#eee4da', '#4a4036'], 4: ['#ede0c8', '#4a4036'], 8: ['#f2b179', '#3f3328'], 16: ['#f59563', '#3f3328'], 32: ['#f67c5f', '#fff'], 64: ['#f65e3b', '#fff'], 128: ['#edcf72', '#fff'], 256: ['#edcc61', '#fff'], 512: ['#edc850', '#fff'], 1024: ['#edc53f', '#fff'], 2048: ['#edc22e', '#fff'] };
+		const MINE_NUM = ['', '#2563eb', '#16a34a', '#dc2626', '#7c3aed', '#b45309', '#0891b2', '#111827', '#6b7280'];
 		const TETRIS_COLORS = { I: '#38bdf8', O: '#facc15', T: '#a78bfa', S: '#4ade80', Z: '#f87171', J: '#60a5fa', L: '#fb923c' };
 		const ico = (d) => h('svg', { width: 14, height: 14, viewBox: '0 0 14 14', fill: 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true, focusable: false }, h('path', { d }));
 		const ICONS = { min: 'M3 7h8', up: 'M3 9l4-4 4 4', close: 'M3.5 3.5l7 7M10.5 3.5l-7 7', rotate: 'M11 7a4 4 0 1 1-1.2-2.85M11 2.5v2.4H8.6' };
@@ -1037,6 +1045,8 @@ window.__ModuleLoader__.load({
 .rzw[data-drag="true"] .rzw-bar{cursor:grabbing}
 .rzw-grip{display:flex;align-items:center;justify-content:center;width:16px;height:24px;color:var(--dsw-alias-label-secondary);letter-spacing:-3px;font-size:14px;line-height:1;opacity:.85}
 .rzw-tabs{display:flex;gap:2px;flex:1;min-width:0}
+.rzw-tabrow{display:flex;gap:2px;padding:4px 6px;border-bottom:0.5px solid var(--rzw-line)}
+.rzw-tabrow .rzw-tab{flex:1 1 0;min-width:0;padding:0 2px;text-align:center;font-size:12px}
 .rzw-tab{border:0;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;min-height:32px;padding:0 11px;border-radius:999px;cursor:pointer;transition:background .15s,color .15s}
 .rzw-tab:hover{background:var(--rzw-soft)}
 .rzw-tab[aria-selected="true"]{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font-weight:600;box-shadow:0 0 0 0.5px var(--rzw-line)}
@@ -1064,6 +1074,15 @@ window.__ModuleLoader__.load({
 .rzw-over{text-align:center;color:var(--dsw-alias-label-secondary)}
 .rzw-over b{color:var(--dsw-alias-label-primary)}
 .rzw-msg{color:var(--dsw-alias-brand-primary);font-weight:600;text-align:center;min-height:16px}
+.rzw-tiles{display:grid;gap:6px;padding:6px;border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 20%,var(--dsw-alias-bg-layer-1));border:0.5px solid var(--rzw-line);touch-action:none}
+.rzw-tile{display:flex;align-items:center;justify-content:center;aspect-ratio:1;border-radius:6px;font-weight:700;transition:background .12s;background:color-mix(in srgb,var(--dsw-alias-label-primary) 15%,var(--dsw-alias-bg-layer-1));box-shadow:inset 0 0 0 0.5px var(--rzw-line)}
+.rzw-tile[aria-label=empty]{color:transparent}
+.rzw-mines{display:grid;gap:2px;padding:2px;border-radius:8px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 10%,var(--dsw-alias-bg-layer-1));border:0.5px solid var(--rzw-line);touch-action:manipulation}
+.rzw-mine{display:flex;align-items:center;justify-content:center;aspect-ratio:1;border:0;padding:0;font:inherit;font-size:13px;font-weight:700;line-height:1;cursor:pointer;background:color-mix(in srgb,var(--dsw-alias-label-primary) 24%,var(--dsw-alias-bg-layer-1));box-shadow:inset 0 -2px 0 rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.12);color:var(--dsw-alias-label-primary);border-radius:3px}
+.rzw-mine:hover:not([data-open]){background:color-mix(in srgb,var(--dsw-alias-label-primary) 32%,var(--dsw-alias-bg-layer-1))}
+.rzw-mine[data-open]{background:var(--dsw-alias-bg-layer-1);box-shadow:none;cursor:default}
+.rzw-mine[data-boom]{background:#fecaca}
+.rzw-mine[data-cursor]{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px;border-radius:5px;z-index:1}
 .rzw-hint{color:var(--dsw-alias-label-secondary);text-align:center;font-size:11px}
 .rzw .rzp-bars{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .rzw-meter{display:flex;flex-direction:column;gap:4px}
@@ -1150,7 +1169,7 @@ window.__ModuleLoader__.load({
 		function GameOver(p) {
 			const { done, score, onAgain } = p;
 			return h('div', { className: 'rzw-over', role: 'status' },
-				h('div', null, 'Game over. Score ', h('b', null, score)),
+				h('div', null, p.text || 'Game over. Score ', h('b', null, score)),
 				done && (done.reward.coins > 0 || done.reward.xp > 0) ? h('div', null, done.newBest ? 'New best! ' : '', '+' + done.reward.coins + ' coins, +' + done.reward.xp + ' xp') : (done ? h('div', null, 'No points this time.') : null),
 				h('div', { className: 'rzw-row', style: { marginTop: 6 } }, h('button', { type: 'button', className: 'rzw-btn', 'data-primary': '', onClick: onAgain }, 'Play again')));
 		}
@@ -1246,6 +1265,149 @@ window.__ModuleLoader__.load({
 					h('button', { type: 'button', className: 'rzw-btn', 'aria-label': 'Hold', onClick: () => play((c) => tetrisHold(c, rng.current)) }, 'Hold')));
 		}
 
+		function G2048Panel(p) {
+			const { store, best } = p;
+			const g = useGame(store, 'g2048', (r) => g2048New(r), (cur) => cur, () => 1e9);
+			const { s, apply, rng, done, reset } = g;
+			const root = useRef(null);
+			useEffect(() => { if (root.current) root.current.focus(); }, []);
+			const go = (dir) => apply((cur) => g2048Move(cur, dir, rng.current));
+			const onKey = (e) => {
+				const map = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right' };
+				if (map[e.key]) { e.preventDefault(); go(map[e.key]); } else if (e.key === 'r') { e.preventDefault(); reset(); }
+			};
+			// swipe support for touch
+			const start = useRef(null);
+			const onDown = (e) => { start.current = { x: e.clientX, y: e.clientY }; };
+			const onUp = (e) => { const a = start.current; start.current = null; if (!a) return; const dx = e.clientX - a.x, dy = e.clientY - a.y; if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return; go(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up')); };
+			const cell = (v) => { const c = TILE_COLORS[v] || ['#3c3a32', '#fff']; const o = { color: c[1], fontSize: v >= 1024 ? 14 : v >= 128 ? 17 : 21 }; if (c[0]) o.background = c[0]; return o; };
+			return h('div', { className: 'rzw-body', ref: root, tabIndex: 0, onKeyDown: onKey, 'aria-label': '2048. Arrow keys or WASD slide the tiles, R restarts.', style: { outline: 'none' } },
+				h('div', { className: 'rzw-head' }, h('span', null, 'Score ', h('b', null, s.score)), h('span', null, 'Best ', h('b', null, Math.max(best, s.score)))),
+				h('div', { className: 'rzw-tiles', onPointerDown: onDown, onPointerUp: onUp, style: { gridTemplateColumns: 'repeat(' + s.size + ',1fr)' }, role: 'grid', 'aria-label': '2048 board' },
+					s.board.flat().map((v, i) => h('div', { key: i, className: 'rzw-tile', role: 'gridcell', style: cell(v), 'aria-label': v ? String(v) : 'empty' }, v || ''))),
+				s.over ? h(GameOver, { done, score: s.score, onAgain: reset }) : h('div', { className: s.won ? 'rzw-msg' : 'rzw-hint' }, s.won ? 'You made 2048! Keep going.' : 'Arrows or WASD, or swipe'),
+				h('div', { className: 'rzw-pad', 'aria-label': 'Touch controls' },
+					h('span'), h('button', { type: 'button', className: 'rzw-btn', 'aria-label': 'Up', onClick: () => go('up') }, '\u25B2'), h('span'),
+					h('button', { type: 'button', className: 'rzw-btn', 'aria-label': 'Left', onClick: () => go('left') }, '\u25C0'), h('button', { type: 'button', className: 'rzw-btn', 'aria-label': 'Down', onClick: () => go('down') }, '\u25BC'), h('button', { type: 'button', className: 'rzw-btn', 'aria-label': 'Right', onClick: () => go('right') }, '\u25B6')));
+		}
+
+		function MinesPanel(p) {
+			const { store, best } = p;
+			const [seed] = useState(() => makeRng((Date.now() ^ 0x1b873593) >>> 0));
+			const rng = useRef(seed);
+			const [s, setS] = useState(() => minesNew(9, 9, 10));
+			const [secs, setSecs] = useState(0);
+			const [flagMode, setFlagMode] = useState(false);
+			const [done, setDone] = useState(null);
+			const [cursor, setCursor] = useState({ x: 4, y: 4 });
+			const root = useRef(null);
+			useEffect(() => { if (root.current) root.current.focus(); }, []);
+			useEffect(() => {
+				if (s.status !== 'playing') return undefined;
+				const id = setInterval(() => setSecs((v) => v + 1), 1000);
+				return () => clearInterval(id);
+			}, [s.status]);
+			const score = minesScore(s, secs);
+			useEffect(() => {
+				if ((s.status === 'won' || s.status === 'lost') && !done) setDone(store.pet.finishGame('mines', score));
+				if (s.status === 'won') store.celebrateGame();
+			}, [s.status]);
+			const reset = () => { rng.current = makeRng((Date.now() ^ 0x2545f491) >>> 0); setS(minesNew(9, 9, 10)); setSecs(0); setDone(null); };
+			const act = (x, y, flag) => setS((cur) => {
+				const c = cur.cells[y * cur.w + x];
+				if (flag) return minesFlag(cur, x, y);
+				if (c.state === 'open') return minesChord(cur, x, y, rng.current);
+				return minesReveal(cur, x, y, rng.current);
+			});
+			const onKey = (e) => {
+				const mv = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[e.key];
+				if (mv) { e.preventDefault(); setCursor((c) => ({ x: clamp(c.x + mv[0], 0, s.w - 1), y: clamp(c.y + mv[1], 0, s.h - 1) })); }
+				else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); act(cursor.x, cursor.y, flagMode); }
+				else if (e.key === 'f') { e.preventDefault(); act(cursor.x, cursor.y, true); }
+				else if (e.key === 'r') { e.preventDefault(); reset(); }
+			};
+			const end = s.status === 'won' || s.status === 'lost';
+			return h('div', { className: 'rzw-body', ref: root, tabIndex: 0, onKeyDown: onKey, 'aria-label': 'Minesweeper. Arrow keys move, space opens, F flags, R restarts.', style: { outline: 'none' } },
+				h('div', { className: 'rzw-head' }, h('span', null, '\uD83D\uDEA9 ', h('b', null, minesFlagsLeft(s))), h('span', null, '\u23F1 ', h('b', null, secs)), h('span', null, 'Best ', h('b', null, Math.max(best, end ? score : 0)))),
+				h('div', { className: 'rzw-mines', style: { gridTemplateColumns: 'repeat(' + s.w + ',1fr)' }, role: 'grid', 'aria-label': 'Minesweeper board' },
+					s.cells.map((c, i) => {
+						const x = i % s.w, y = Math.floor(i / s.w);
+						const open = c.state === 'open';
+						return h('button', { key: i, type: 'button', tabIndex: -1, role: 'gridcell', className: 'rzw-mine', 'data-open': open ? '' : undefined, 'data-cursor': cursor.x === x && cursor.y === y ? '' : undefined, 'data-boom': open && c.mine ? '' : undefined,
+							'aria-label': open ? (c.mine ? 'mine' : c.adj ? c.adj + ' nearby' : 'empty') : c.state === 'flag' ? 'flag' : 'hidden', style: open && !c.mine && c.adj ? { color: MINE_NUM[c.adj] } : undefined,
+							onClick: () => { setCursor({ x, y }); act(x, y, flagMode); }, onContextMenu: (e) => { e.preventDefault(); act(x, y, true); } },
+							open ? (c.mine ? '\uD83D\uDCA3' : c.adj || '') : c.state === 'flag' ? '\uD83D\uDEA9' : '');
+					})),
+				end ? h(GameOver, { done, score, onAgain: reset, text: s.status === 'won' ? 'You cleared it! Score ' : 'Boom. Score ' }) : h('div', { className: 'rzw-hint' }, flagMode ? 'Flag mode: tap to flag' : 'Tap to open, right-click or Flag mode to flag'),
+				h('div', { className: 'rzw-row' },
+					h('button', { type: 'button', className: 'rzw-btn', 'aria-pressed': flagMode, 'data-primary': flagMode ? '' : undefined, onClick: () => setFlagMode((v) => !v) }, '\uD83D\uDEA9 Flag mode'),
+					h('button', { type: 'button', className: 'rzw-btn', onClick: reset }, 'New game')));
+		}
+
+		function PongPanel(p) {
+			const { store, best } = p;
+			const rng = useRef(null);
+			if (rng.current === null) rng.current = makeRng((Date.now() ^ 0x7feb352d) >>> 0);
+			const [s, setS] = useState(() => pongNew(rng.current));
+			const [paused, setPaused] = useState(true);
+			const [done, setDone] = useState(null);
+			const sRef = useRef(s); sRef.current = s;
+			const dir = useRef(0);
+			const keys = useRef({ up: false, down: false });
+			const cv = useRef(null);
+			const root = useRef(null);
+			useEffect(() => { if (root.current) root.current.focus(); }, []);
+			useEffect(() => {
+				if (paused || s.over) return undefined;
+				let raf = 0, last = performance.now();
+				const loop = (now) => {
+					const dt = now - last; last = now;
+					const next = pongStep(sRef.current, dt, { dir: dir.current }, rng.current);
+					sRef.current = next; setS(next);
+					if (!next.over) raf = requestAnimationFrame(loop);
+				};
+				raf = requestAnimationFrame(loop);
+				return () => cancelAnimationFrame(raf);
+			}, [paused, s.over]);
+			useEffect(() => { if (s.over && !done) { setDone(store.pet.finishGame('pong', pongScore(s))); if (s.winner === 'player') store.celebrateGame(); } }, [s.over]);
+			useEffect(() => {
+				const onVis = () => { if (document.hidden) setPaused(true); };
+				document.addEventListener('visibilitychange', onVis);
+				return () => document.removeEventListener('visibilitychange', onVis);
+			}, []);
+			useEffect(() => {
+				paintGrid(cv.current, PONG_W, PONG_H, (c) => {
+					c.fillStyle = 'rgba(128,128,128,.35)';
+					for (let y = 1; y < PONG_H; y += 4) c.fillRect(PONG_W / 2 - 0.4, y, 0.8, 2);
+					c.fillStyle = cssVar('--dsw-alias-label-primary', '#fff');
+					c.fillRect(PONG_PADDLE_X, s.player.y - PONG_PADDLE_H / 2, 1.5, PONG_PADDLE_H);
+					c.fillRect(PONG_W - PONG_PADDLE_X - 1.5, s.ai.y - PONG_PADDLE_H / 2, 1.5, PONG_PADDLE_H);
+					c.fillStyle = '#f59e0b'; c.beginPath(); c.arc(s.ball.x, s.ball.y, PONG_BALL_R, 0, 7); c.fill();
+				});
+			});
+			const set = (v) => { dir.current = v; if (paused && !s.over && v !== 0) setPaused(false); };
+			const onKey = (e) => {
+				const up = ['ArrowUp', 'w'].includes(e.key), down = ['ArrowDown', 's'].includes(e.key);
+				if (up || down) { e.preventDefault(); keys.current[up ? 'up' : 'down'] = e.type === 'keydown'; set(keys.current.down ? 1 : keys.current.up ? -1 : 0); }
+				else if (e.type === 'keydown' && (e.key === ' ' || e.key === 'p')) { e.preventDefault(); if (!s.over) setPaused((v) => !v); }
+				else if (e.type === 'keydown' && e.key === 'r') { e.preventDefault(); reset(); }
+			};
+			const reset = () => { rng.current = makeRng((Date.now() ^ 0x68e31da4) >>> 0); const n = pongNew(rng.current); sRef.current = n; setS(n); setDone(null); setPaused(false); };
+			const pointer = (e) => {
+				const r = cv.current.getBoundingClientRect();
+				const y = ((e.clientY - r.top) / r.height) * PONG_H;
+				const diff = y - sRef.current.player.y;
+				set(Math.abs(diff) < 1.5 ? 0 : diff > 0 ? 1 : -1);
+			};
+			return h('div', { className: 'rzw-body', ref: root, tabIndex: 0, onKeyDown: onKey, onKeyUp: onKey, 'aria-label': 'Pong. Up and down arrows or W and S move your paddle, space pauses.', style: { outline: 'none' } },
+				h('div', { className: 'rzw-head' }, h('span', null, 'You ', h('b', null, s.score.player)), h('span', null, 'First to ', h('b', null, PONG_WIN)), h('span', null, 'CPU ', h('b', null, s.score.ai))),
+				h('canvas', { ref: cv, className: 'rzw-cv', style: { aspectRatio: PONG_W + ' / ' + PONG_H, touchAction: 'none' }, role: 'img', 'aria-label': 'Pong board', onPointerDown: pointer, onPointerMove: (e) => { if (e.buttons) pointer(e); }, onPointerUp: () => set(0), onPointerCancel: () => set(0) }),
+				s.over ? h(GameOver, { done, score: pongScore(s), onAgain: reset, text: s.winner === 'player' ? 'You win! Score ' : 'CPU wins. Score ' }) : h('div', { className: 'rzw-hint' }, paused ? 'Press W/S or drag on the board to start' : 'Up/Down or W/S, or drag the board'),
+				!s.over ? h('div', { className: 'rzw-row' }, h('button', { type: 'button', className: 'rzw-btn', 'data-primary': paused ? '' : undefined, onClick: () => setPaused((v) => !v) }, paused ? (s.rallies || s.score.player || s.score.ai ? 'Resume' : 'Start') : 'Pause')) : null,
+				h('div', { className: 'rzw-row', 'aria-label': 'Touch controls' },
+					h('button', { type: 'button', className: 'rzw-btn rzw-pad-btn', 'aria-label': 'Paddle up', onPointerDown: () => set(-1), onPointerUp: () => set(0), onPointerLeave: () => set(0) }, '\u25B2 Up'),
+					h('button', { type: 'button', className: 'rzw-btn rzw-pad-btn', 'aria-label': 'Paddle down', onPointerDown: () => set(1), onPointerUp: () => set(0), onPointerLeave: () => set(0) }, '\u25BC Down')));
+		}
 		function GameWindow(p) {
 			const { store } = p;
 			const st = useStore(store);
@@ -1274,7 +1436,7 @@ window.__ModuleLoader__.load({
 			const minimized = s.windowMin;
 			const scale = clamp(Number(s.windowSize) || 1, 0.8, 1.6);
 			const width = WIN_W * scale;
-			const estimate = minimized ? 42 * scale : (s.windowTab === 'pet' ? 313 : s.windowTab === 'snake' ? 448 : 470) * scale;
+			const estimate = minimized ? 42 * scale : ({ pet: 313, snake: 448, tetris: 470, g2048: 440, mines: 440, pong: 380 }[s.windowTab] || 313) * scale;
 			const height = measured || estimate;
 			const unplaced = !(s.windowX >= 0 && s.windowY >= 0);
 			const buddyRect = unplaced ? st.buddy : null;
@@ -1313,14 +1475,16 @@ window.__ModuleLoader__.load({
 				h('style', null, GAME_CSS + PET_CSS),
 				h('div', { className: 'rzw-bar', onPointerDown: startDrag, onKeyDown: nudge, tabIndex: 0, role: 'group', 'aria-label': 'Move window (drag, or use arrow keys)' },
 					h('span', { className: 'rzw-grip', 'aria-hidden': true }, '\u22EE\u22EE'),
-					minimized
-						? h('span', { className: 'rzw-mini' }, h('span', { 'aria-hidden': true, style: { fontSize: 18 } }, sp.emoji), pet.name)
-						: h('div', { className: 'rzw-tabs', role: 'tablist' }, TABS.map(([id, label]) => h('button', { key: id, type: 'button', role: 'tab', 'aria-selected': tab === id, className: 'rzw-tab', onClick: () => store.setSettings({ windowTab: id }) }, label))),
+					h('span', { className: 'rzw-mini' }, h('span', { 'aria-hidden': true, style: { fontSize: 18 } }, sp.emoji), pet.name),
 					h('button', { type: 'button', className: 'rzw-ico', 'aria-label': minimized ? 'Expand window' : 'Minimize window', title: minimized ? 'Expand' : 'Minimize', onClick: () => store.setSettings({ windowMin: !minimized }) }, ico(minimized ? ICONS.up : ICONS.min)),
 					h('button', { type: 'button', className: 'rzw-ico', 'aria-label': 'Close window', title: 'Close (click your pet to open it again)', onClick: () => store.setSettings({ windowOpen: false }) }, ico(ICONS.close))),
+				minimized ? null : h('div', { className: 'rzw-tabrow', role: 'tablist', 'aria-label': 'Pet and games' }, TABS.map(([id, label]) => h('button', { key: id, type: 'button', role: 'tab', 'aria-selected': tab === id, className: 'rzw-tab', onClick: () => store.setSettings({ windowTab: id }) }, label))),
 				minimized ? null
 					: tab === 'snake' ? h(SnakePanel, { key: 'snake', store, best: (pet.best && pet.best.snake) || 0 })
 					: tab === 'tetris' ? h(TetrisPanel, { key: 'tetris', store, best: (pet.best && pet.best.tetris) || 0 })
+					: tab === 'g2048' ? h(G2048Panel, { key: 'g2048', store, best: (pet.best && pet.best.g2048) || 0 })
+					: tab === 'mines' ? h(MinesPanel, { key: 'mines', store, best: (pet.best && pet.best.mines) || 0 })
+					: tab === 'pong' ? h(PongPanel, { key: 'pong', store, best: (pet.best && pet.best.pong) || 0 })
 					: h(PetPanel, { store, pet, working }));
 		}
 		function PetCard(p) {
@@ -1363,7 +1527,7 @@ window.__ModuleLoader__.load({
 						h('span', { className: 'rzd-sub' }, row.hint)),
 					h('div', { className: 'rzd-tabs', role: 'radiogroup', 'aria-label': row.label + ' effect' },
 						STATE_EFFECT_LIST.map(([id, label]) => h('button', { key: id, type: 'button', role: 'radio', 'aria-checked': (s.stateEffects[row.key] || 'off') === id, className: 'rzd-tab', 'data-on': (s.stateEffects[row.key] || 'off') === id ? '' : undefined, onClick: () => set(row.key, { effect: id }) }, label)),
-						(s.stateEffects[row.key] && s.stateEffects[row.key] !== 'off' && s.stateEffects[row.key] !== 'rainbow') ? h('input', { type: 'color', className: 'rzd-color', 'aria-label': row.label + ' color', value: s.stateColors[row.key], onChange: (e) => set(row.key, { color: e.target.value }) }) : null))));
+						(s.stateEffects[row.key] && s.stateEffects[row.key] !== 'off') ? h('input', { type: 'color', className: 'rzd-color', 'aria-label': row.label + ' color', value: s.stateColors[row.key], onChange: (e) => set(row.key, { color: e.target.value }) }) : null))));
 		}
 
 		function CelebrateCard(p) {
@@ -1472,12 +1636,12 @@ window.__ModuleLoader__.load({
 					h(PetCard, { store }),
 					h('div', { className: 'rzd-row' },
 						h('button', { type: 'button', className: 'rzd-btn', onClick: () => store.setSettings({ ...DEFAULTS, giphyKeySet: undefined, petEnabled: store.get().settings.petEnabled, windowX: store.get().settings.windowX, windowY: store.get().settings.windowY }) }, 'Reset all options'),
-						h('span', { className: 'rzd-credit' }, 'Rayskinz DSH Design 0.6.0')));
+						h('span', { className: 'rzd-credit' }, 'Rayskinz DSH Design 0.7.0')));
 			};
 		}
 
 		return {
-			__test: { allEffectsCss, StateEffectsCard, Celebration, PerchDock, Buddy, centerPiece, PetPanel, GameWindow, effectCss, borderCss, tintFor, hexRgb, clamp, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel, themeFrom, exportTheme, parseTheme, PRESETS },
+			__test: { G2048Panel, MinesPanel, PongPanel, allEffectsCss, StateEffectsCard, Celebration, PerchDock, Buddy, centerPiece, PetPanel, GameWindow, effectCss, borderCss, tintFor, hexRgb, clamp, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel, themeFrom, exportTheme, parseTheme, PRESETS },
 			inject: ['slots', 'connection'],
 			apply(ctx) {
 				const store = createStore(ctx.get('connection').rpc);

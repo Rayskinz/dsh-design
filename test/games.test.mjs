@@ -218,3 +218,15 @@ test('placeAbove stays on screen for random inputs', () => {
     assert.ok(p.x >= 8 && p.y >= 8 && p.x + 300 <= Math.max(vw - 8, 308) && p.y + 300 <= Math.max(vh - 8, 308))
   }
 })
+
+test('rewards: every game has a capped table; unknown games fall back to snake', () => {
+  for (const id of g.GAME_IDS) { const r = g.gameReward(id, 1e12); assert.ok(r.coins <= 15 && r.xp <= 30, id); assert.equal(g.gameReward(id, -5).coins, 0) }
+  assert.deepEqual(g.gameReward('nope', 400), g.gameReward('snake', 400)); assert.deepEqual(g.gameReward('snake', NaN), { coins: 0, xp: 2 })
+  assert.equal(g.gameReward('g2048', 12000).coins, 12); assert.equal(g.gameReward('pong', 120).coins, 10)
+})
+
+test('petAfterGame keeps a best for every game and ignores zero scores', () => {
+  const pet = { coins: 0, xp: 0, joy: 50, hunger: 50, best: { snake: 5 } }
+  const r = g.petAfterGame(pet, 'g2048', 1200); assert.equal(r.pet.best.g2048, 1200); assert.equal(r.pet.best.snake, 5); assert.equal(r.newBest, true); assert.equal(r.reward.coins, 2)
+  assert.equal(g.petAfterGame(pet, 'pong', 0).pet, pet)
+})

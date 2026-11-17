@@ -8,6 +8,7 @@ const FX_COLORS = {
   sparkles: ['#fde68a', '#ffffff', '#fcd34d', '#fef3c7'],
   hearts: ['#fb7185', '#f43f5e', '#f9a8d4', '#fda4af'],
 }
+const FX_COLORS_LIGHT = { ...FX_COLORS, sparkles: ['#f59e0b', '#d97706', '#ea580c', '#b45309'], confetti: ['#dc2626', '#d97706', '#16a34a', '#2563eb', '#7c3aed', '#db2777', '#0d9488'] }
 const FX_COUNT = { confetti: 90, sparkles: 60, hearts: 24 }
 const FX_GRAVITY = { confetti: 900, sparkles: 140, hearts: -30 }
 const FX_DRAG = { confetti: 0.985, sparkles: 0.97, hearts: 0.99 }
@@ -18,9 +19,9 @@ export function fxCount(kind, reduced = false) {
 }
 
 // Particles for one burst from (ox, oy) in a w x h viewport. Unknown kind -> none.
-export function fxBurst(kind, rng, ox, oy, w = 1000, h = 700) {
+export function fxBurst(kind, rng, ox, oy, w = 1000, h = 700, light = false) {
   const n = fxCount(kind)
-  const colors = FX_COLORS[kind]
+  const colors = (light ? FX_COLORS_LIGHT : FX_COLORS)[kind]
   if (!n || !colors) return []
   const cx = Math.min(w, Math.max(0, Number.isFinite(ox) ? ox : w / 2))
   const cy = Math.min(h, Math.max(0, Number.isFinite(oy) ? oy : h))
@@ -56,5 +57,5 @@ export const fxAlive = (p) => p.life > 0
 // 0..1 opacity: quick fade in, long fade out over the last third of its life.
 export function fxAlpha(p) {
   const t = Math.max(0, p.life) / (p.max || 1)
-  return Math.min(1, t * 3)
+  return p.life <= 0 ? 0 : Math.min(1, Math.max(0.55, t * 3))
 }

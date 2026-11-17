@@ -214,10 +214,13 @@ export function tetrisDelay(s) {
 
 // -------------------------------------------------------------- rewards
 // Coins and xp for finishing a game. Capped so grinding games cannot break the pet economy.
+// Per-game reward tables: coins divisor, coin cap, xp divisor. Capped so grinding cannot break the pet economy.
+export const GAME_IDS = ['snake', 'tetris', 'g2048', 'mines', 'pong']
+const REWARD = { snake: [40, 12, 30], tetris: [400, 15, 250], g2048: [600, 12, 400], mines: [30, 10, 40], pong: [12, 10, 15] }
 export function gameReward(game, score) {
-  const s = Math.max(0, Math.floor(score))
-  const coins = Math.min(game === 'snake' ? 12 : 15, game === 'snake' ? Math.floor(s / 40) : Math.floor(s / 400))
-  return { coins, xp: Math.min(30, 2 + Math.floor(s / (game === 'snake' ? 30 : 250))) }
+  const s = Math.max(0, Math.floor(Number.isFinite(score) ? score : 0))
+  const [cd, cap, xd] = REWARD[game] || REWARD.snake
+  return { coins: Math.min(cap, Math.floor(s / cd)), xp: Math.min(30, 2 + Math.floor(s / xd)) }
 }
 
 // Result of finishing a game: the pet earns coins and xp, and the best score is kept.
@@ -227,7 +230,7 @@ export function petAfterGame(pet, game, score) {
   const prev = pet.best?.[game] ?? 0
   if (s <= 0) return { pet, reward: { coins: 0, xp: 0 }, newBest: false }
   const reward = gameReward(game, s)
-  const best = { snake: 0, tetris: 0, ...pet.best, [game]: Math.max(prev, s) }
+  const best = { snake: 0, tetris: 0, g2048: 0, mines: 0, pong: 0, ...pet.best, [game]: Math.max(prev, s) }
   return {
     pet: { ...pet, coins: pet.coins + reward.coins, xp: pet.xp + reward.xp, joy: Math.min(100, pet.joy + 8), hunger: Math.max(0, pet.hunger - 3), best },
     reward,
