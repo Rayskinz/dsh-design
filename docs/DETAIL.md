@@ -1,19 +1,24 @@
 # Rayskinz DSH Design
 
-Make DeepSeek Harness look like yours. Everything lives on one page: **Settings → Design Options**.
+Make DeepSeek Harness look like yours. Everything lives on one page: **Settings -> Design Options**.
 
 ## What you get
 
-- **Chat background** behind every chat. Pick from a Wallhaven wallpaper search, a GIPHY GIF search, a pasted link, or a file from your computer. GIFs and videos animate.
-- **Background controls**: panel see-through, darken, blur, on/off switch.
-- **Window border**: neon, rainbow, gold, stripes or fire frame around the app, with an only-while-working option.
-- **Chat colors**: tint a sidebar chat by a word in its title (for example Opus, Sonnet, Haiku sub-chats).
-- **Pet and games window**: a draggable window that follows you into every chat, with a pet, Snake and Tetris. Chats and games earn coins.
-- **Working chat effect**: how a running chat looks in the sidebar. Rainbow wave, pulse, scanner and ember, with cycle time and color.
+- **Chat backgrounds** from a wallpaper search, free GIF searches (no account), a pasted link or a file. GIFs and videos animate. Save up to 24, then pick one per chat, per workspace or per chat mood, or let a playlist rotate them.
+- **Working-chat effects** in the sidebar (seven looks, intensity slider) plus looks for chats that are waiting, errored or finished, and a confetti / sparkle / heart burst when a chat finishes.
+- **Chat colors**: color a sidebar chat by a word in its title. Sub-chats get darker shades of their parent's color, a small label and a branch line.
+- **Accent color** for the app's selected tab line, focus rings and buttons.
+- **Chat look**: font, text size, spacing, width, four message-bubble styles, and round pictures above replies and your messages.
+- **Window border**: neon, rainbow, gold, stripes or fire.
+- **Pet and games window**: a pet that sits beside your chat box, hats, stats, sounds, and five games (Snake, Tetris, 2048, Minesweeper, Pong). Chats and games earn coins.
+- **Themes**: four ready looks, your own saved looks, a quick switch (Ctrl + Alt + Left / Right), and a different look for each workspace.
 
 ## Good to know
 
+- Nothing changes until you change it. Every look setting starts at "App default" or Off.
 - Wallpapers, GIFs (Wikimedia Commons) and anime GIFs (nekos.best) need no account. GIPHY is optional and needs a free key.
-- Your chosen background is saved on your computer and loads the same way every launch.
+- The Commons GIF search is not filtered for sensitive content. Check a GIF before you keep it.
+- Backgrounds, pet, pictures and themes are saved on your computer.
 - Files over 40 MB are refused. Wallhaven results are safe for work only.
 - Lower "Panel see-through" if text gets hard to read over a busy background.
+- The plugin never reads your messages.

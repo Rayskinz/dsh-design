@@ -1,7 +1,7 @@
 {
     "name":  "@rayskinz/dsh-design",
     "version":  "0.9.0",
-    "description":  "Rayskinz DSH Design: chat backgrounds from a wallpaper and GIF hub, working-chat effects, window borders and chat colors, in one Design Options page.",
+    "description":  "Rayskinz DSH Design: backgrounds (wallpaper and GIF hub, saved list, per chat or workspace), sidebar effects, chat colors, accent and chat look, a pet with games, and themes, in one Design Options page.",
     "license":  "MIT",
     "author":  "Rayskinz",
     "repository":  {
