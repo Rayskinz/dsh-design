@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
 			bgEnabled: true, panel: 55, dim: 0, blur: 0, effect: 'off', speed: 3, effectColor: '#60a5fa', giphyKeySet: false,
 			borderStyle: 'off', borderWidth: 2, borderColor: '#7c5cff', borderOnlyWorking: false,
 			intensity: 70, stateEffects: { warning: 'pulse', error: 'off', done: 'off' }, stateColors: { warning: '#fbbf24', error: '#f87171', done: '#4ade80' },
-			celebrate: 'off', celebrateOnGame: true, accent: '', accentEnabled: false, fontFamily: 'default', fontSize: 0, lineSpacing: 0, userBubble: 'default', chatWidth: 0, avatarAssistantKind: 'none', avatarUserKind: 'none', avatarAssistantEmoji: '\u{1F916}', avatarUserEmoji: '\u{1F9D1}', avatarSize: 26, familyTint: true, lineageBadges: true,
+			celebrate: 'off', celebrateOnGame: true, accent: '', accentEnabled: false, fontFamily: 'default', fontSize: 0, lineSpacing: 0, userBubble: 'default', chatWidth: 0, avatarAssistantKind: 'none', avatarUserKind: 'none', avatarAssistantEmoji: '\u{1F916}', avatarUserEmoji: '\u{1F9D1}', avatarSize: 26, soundVolume: 0, soundMuted: [], soundOnGame: true, familyTint: true, lineageBadges: true,
 			tintEnabled: false, petEnabled: false, windowX: -1, windowY: -1, windowTab: 'pet', windowMin: false, windowOpen: false, windowSize: 1,
 			tintRules: [
 				{ match: 'opus', color: '#a78bfa' }, { match: 'sonnet', color: '#60a5fa' }, { match: 'haiku', color: '#4ade80' },
@@ -231,7 +231,10 @@ window.__ModuleLoader__.load({
 			chick: { emoji: '\uD83D\uDC24', cost: 0 }, cat: { emoji: '\uD83D\uDC31', cost: 0 }, dog: { emoji: '\uD83D\uDC36', cost: 40 },
 			fox: { emoji: '\uD83E\uDD8A', cost: 80 }, frog: { emoji: '\uD83D\uDC38', cost: 120 }, octopus: { emoji: '\uD83D\uDC19', cost: 200 }, dragon: { emoji: '\uD83D\uDC32', cost: 400 },
 		};
+		const SOUND_EVENT_LIST = SOUND_EVENTS;
 		const FEED_COST = 2;
+		// The hat sits on the pet's head: a small emoji, absolutely placed, not read out by screen readers.
+		const hatOf = (pet) => { const h0 = pet && HATS[pet.hat]; return h0 && h0.emoji ? h('span', { className: 'rzp-hat', 'aria-hidden': true }, h0.emoji) : null; };
 		const petLevel = (xp) => Math.floor(Math.sqrt(Math.max(0, xp) / 20)) + 1;
 		function petTick(p, now) {
 			const el = clamp(now - p.lastTick, 0, 48 * 3600e3);
@@ -299,6 +302,7 @@ window.__ModuleLoader__.load({
 						const [settings, data, pet, libr, th, av] = await Promise.all([call('getSettings'), call('data'), call('getPet'), call('libList').catch(() => ({ lib: libEmpty() })), call('libThumbs').catch(() => ({ thumbs: {} })), call('avatarGet').catch(() => ({ assistant: '', user: '' }))]);
 						set({ ready: true, settings: withDefaults(settings), bg: toBg(data), pet: petTick(pet, Date.now()), lib: libClean(libr && libr.lib), thumbs: (th && th.thumbs) || {}, avatars: { assistant: avatarImage(av && av.assistant), user: avatarImage(av && av.user) }, ctx: { ...state.ctx, seed: (Date.now() ^ 0x5bd1e995) >>> 0 }, error: '' });
 						refreshShown();
+						petActions.visit();
 						return;
 					} catch (e) {
 						if (i === 5) set({ ready: true, error: 'Could not reach the Design plugin host: ' + (e && e.message) });
@@ -416,16 +420,51 @@ window.__ModuleLoader__.load({
 				if (message) toast(message);
 			}
 			state.burstNow = (kind) => set({ burst: { id: (state.burst ? state.burst.id : 0) + 1, kind, at: null } });
+			// Sound: tone plans from pet2.js played through Web Audio. One shared context, created on the first sound
+			// (browsers only allow that after a user action), closed on dispose. Nothing plays at volume 0.
+			let audioCtx = null;
+			let lastSound = {};
+			function playSound(event) {
+				const s = state.settings;
+				if (!s.soundVolume) return;
+				if (event === 'coin' && !s.soundOnGame) return;
+				const gate = soundAllow(lastSound, event, Date.now());
+				if (!gate.ok) return;
+				lastSound = gate.last;
+				const plan = soundPlan(event, s.soundVolume, s.soundMuted);
+				if (!plan.length) return;
+				try {
+					const AC = window.AudioContext || window.webkitAudioContext;
+					if (!AC) return;
+					if (!audioCtx) audioCtx = new AC();
+					if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+					const t0 = audioCtx.currentTime + 0.02;
+					for (const tone of plan) {
+						const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+						o.type = tone.type; o.frequency.value = tone.freq;
+						const a = t0 + tone.at / 1000, end = a + tone.ms / 1000;
+						g.gain.setValueAtTime(0.0001, a);
+						g.gain.exponentialRampToValueAtTime(Math.max(0.0002, tone.gain), a + 0.012);
+						g.gain.exponentialRampToValueAtTime(0.0001, end + 0.06);
+						o.connect(g); g.connect(audioCtx.destination);
+						o.start(a); o.stop(end + 0.08);
+					}
+					state.lastPlayed = (state.lastPlayed || 0) + 1;
+				} catch (e) { /* no audio device or blocked: stay silent */ }
+			}
+			const bumpStats = (p, key, by, coins) => ({ ...p, stats: petStatsBump(p.stats, key, by, coins) });
 			const petActions = {
-				feed: () => (state.pet && state.pet.coins >= FEED_COST ? pet(petFeed, 'Nom nom') : toast('Not enough coins. Finished chats earn them.')),
+				feed: () => (state.pet && state.pet.coins >= FEED_COST ? pet((p) => bumpStats(petFeed(p), 'feeds', 1, -FEED_COST), 'Nom nom') : toast('Not enough coins. Finished chats earn them.')),
 				play: () => pet(petPlay, 'Wheee'),
-				pat: () => pet(petPat, 'Purr'),
-				reward: () => pet(petReward, '+3 coins'),
+				pat: () => { playSound('pet'); return pet((p) => bumpStats(petPat(p), 'pats', 1, 0), 'Purr'); },
+				reward: () => { const lv = state.pet ? petLevel(state.pet.xp) : 0; playSound('finish'); const out = pet((p) => bumpStats(petReward(p), 'chats', 1, 3), '+3 coins'); if (state.pet && petLevel(state.pet.xp) > lv) setTimeout(() => playSound('levelup'), 700); return out; },
 				finishGame: (game, score) => {
 					const before = state.pet;
 					if (!before) return null;
 					const r = petAfterGame(petTick(before, Date.now()), game, score);
-					set({ pet: r.pet });
+					const lvBefore = petLevel(before.xp);
+					set({ pet: bumpStats(r.pet, 'games', 1, r.reward.coins) });
+					playSound(petLevel(r.pet.xp) > lvBefore ? 'levelup' : r.reward.coins > 0 ? 'coin' : 'lose');
 					savePet();
 					if (r.reward.coins > 0) toast('+' + r.reward.coins + ' coins');
 					return r;
@@ -435,8 +474,19 @@ window.__ModuleLoader__.load({
 					if (!state.pet || !sp) return;
 					if (state.pet.unlocked.includes(species)) return pet((p) => ({ ...p, species }), '');
 					if (state.pet.coins < sp.cost) return toast('Need ' + sp.cost + ' coins');
-					pet((p) => petBuy(p, species), 'New friend unlocked');
+					pet((p) => bumpStats(petBuy(p, species), 'games', 0, -sp.cost), 'New friend unlocked');
 				},
+				buyHat: (id) => {
+					const h0 = HATS[id];
+					if (!state.pet || !h0) return;
+					if ((state.pet.hats || []).includes(id)) return pet((p) => petWearHat(p, id), '');
+					if (state.pet.coins < h0.cost) return toast('Need ' + h0.cost + ' coins');
+					playSound('coin');
+					pet((p) => petBuyHat(p, id), 'New hat!');
+				},
+				wearHat: (id) => pet((p) => petWearHat(p, id), ''),
+				countWin: () => { if (state.pet) { set({ pet: bumpStats(state.pet, 'wins', 1, 0) }); savePet(); } },
+				visit: () => { if (state.pet) { const next = { ...state.pet, stats: petStatsVisit(state.pet.stats, Date.now()) }; set({ pet: next }); savePet(); } },
 				rename: (name) => pet((p) => ({ ...p, name: String(name).slice(0, 16) || p.name }), ''),
 				tick: () => {
 					if (state.pet) set({ pet: petTick(state.pet, Date.now()) });
@@ -444,12 +494,14 @@ window.__ModuleLoader__.load({
 			};
 			return {
 				pet: petActions,
-				celebrateGame: () => { if (state.settings.celebrateOnGame) { const k = state.settings.celebrate; if (k && k !== 'off') state.burstNow(k); } },
+				celebrateGame: () => { state.pet && petActions.countWin(); playSound('win'); if (state.settings.celebrateOnGame) { const k = state.settings.celebrate; if (k && k !== 'off') state.burstNow(k); } },
 				celebrate: (kindOverride, at) => {
 					const kind = kindOverride || state.settings.celebrate;
 					if (!kind || kind === 'off' || !FX_KINDS.includes(kind)) return;
 					set({ burst: { id: (state.burst ? state.burst.id : 0) + 1, kind, at: at || null } });
 				},
+				playSound,
+				playSoundNow: (e) => { lastSound = {}; playSound(e); },
 				setPerch: (v) => { if (v !== state.perch) set({ perch: v }); },
 				say: (line, ms = 3200) => {
 					clearTimeout(sayTimer);
@@ -495,6 +547,7 @@ window.__ModuleLoader__.load({
 					}
 				},
 				dispose: () => {
+					try { if (audioCtx) audioCtx.close(); } catch (e) { /* already closed */ }
 					clearTimeout(libTimer);
 					clearTimeout(saveTimer);
 					clearTimeout(petTimer);
@@ -1070,6 +1123,8 @@ window.__ModuleLoader__.load({
 .rzp-top{display:flex;gap:8px;align-items:baseline}
 .rzp-name{font-weight:600}
 .rzp-sub{color:var(--dsw-alias-label-secondary)}
+.rzp-face{position:relative;display:inline-block}
+.rzp-hat{position:absolute;left:50%;top:-0.38em;transform:translateX(-50%) rotate(-8deg);font-size:.62em;line-height:1;pointer-events:none}
 .rzp-bars{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .rzp-bar{height:5px;border-radius:3px;background:var(--dsw-alias-border-l1);overflow:hidden}
 .rzp-bar>i{display:block;height:100%;border-radius:3px;transition:width .4s}
@@ -1191,7 +1246,7 @@ window.__ModuleLoader__.load({
 				h('style', null, PET_CSS + BUDDY_CSS),
 				h('div', { className: 'rzb-fig' },
 					h('button', { type: 'button', className: 'rzb-pet', 'data-mood': mood, 'aria-label': 'Pat ' + pet.name, title: pet.name + ' \u00B7 Lv ' + petLevel(pet.xp) + ' \u00B7 ' + pet.coins + ' coins', style: k === 1 ? undefined : { fontSize: 46 * k, width: 64 * k, height: 64 * k, lineHeight: 56 * k + 'px' }, onClick: () => store.pet.pat() },
-						h('span', { className: 'rzp-face' }, sp.emoji),
+						h('span', { className: 'rzp-face' }, sp.emoji, hatOf(pet)),
 						MOOD_BUBBLE[mood] ? h('span', { className: 'rzp-bubble', 'aria-hidden': true }, MOOD_BUBBLE[mood]) : null)),
 				h('button', { type: 'button', className: 'rzb-chip', 'data-say': (st.toast || say) ? '' : undefined, 'aria-label': s.windowOpen ? 'Close pet and games window' : 'Open pet and games window', 'aria-expanded': !!s.windowOpen, onClick: () => store.setSettings({ windowOpen: !s.windowOpen }) }, h('span', { className: 'rzb-chip-text', 'aria-hidden': true }, st.toast || say || pet.name), h('span', { 'aria-hidden': true }, s.windowOpen ? '\u25BE' : '\u25B8')),
 				h('span', { className: 'rzb-sr', role: 'status' }, st.toast || say || ''));
@@ -1211,7 +1266,7 @@ window.__ModuleLoader__.load({
 				h('button', { type: 'button', className: 'rzb-chip', 'data-say': (st.toast || st.say) ? '' : undefined, 'aria-label': s.windowOpen ? 'Close pet and games window' : 'Open pet and games window', 'aria-expanded': !!s.windowOpen, onClick: () => store.setSettings({ windowOpen: !s.windowOpen }) }, h('span', { className: 'rzb-chip-text', 'aria-hidden': true }, st.toast || st.say || pet.name), h('span', { 'aria-hidden': true }, s.windowOpen ? '\u25BE' : '\u25B8')),
 				h('span', { className: 'rzb-sr', role: 'status' }, st.toast || st.say || ''),
 				h('button', { type: 'button', className: 'rzb-pet', 'data-mood': mood, 'aria-label': 'Pat ' + pet.name, title: pet.name + ' \u00B7 Lv ' + petLevel(pet.xp) + ' \u00B7 ' + pet.coins + ' coins', onClick: () => store.pet.pat() },
-					h('span', { className: 'rzp-face' }, sp.emoji),
+					h('span', { className: 'rzp-face' }, sp.emoji, hatOf(pet)),
 					MOOD_BUBBLE[mood] ? h('span', { className: 'rzp-bubble', 'aria-hidden': true }, MOOD_BUBBLE[mood]) : null));
 		}
 		// ------------------------------------------------------------- celebration
@@ -1291,7 +1346,7 @@ window.__ModuleLoader__.load({
 .rzw-tab[aria-selected="true"]{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font-weight:600;box-shadow:0 0 0 0.5px var(--rzw-line)}
 .rzw-ico{display:flex;align-items:center;justify-content:center;border:0;background:transparent;color:var(--dsw-alias-label-secondary);width:32px;height:32px;border-radius:8px;cursor:pointer;padding:0}
 .rzw-ico:hover{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}
-.rzw-body{padding:10px;display:flex;flex-direction:column;gap:8px;align-items:stretch}
+.rzw-body{padding:10px;display:flex;flex-direction:column;gap:8px;align-items:stretch;max-height:calc(100vh - 150px);overflow-y:auto;overscroll-behavior:contain}
 .rzw-mini{display:flex;align-items:center;gap:6px;flex:1;padding:0 6px;color:var(--dsw-alias-label-primary);font-weight:600}
 .rzw-head{display:flex;justify-content:space-between;gap:8px;color:var(--dsw-alias-label-secondary)}
 .rzw-head b{color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums}
@@ -1322,6 +1377,24 @@ window.__ModuleLoader__.load({
 .rzw-mine[data-open]{background:var(--dsw-alias-bg-layer-1);box-shadow:none;cursor:default}
 .rzw-mine[data-boom]{background:#fecaca}
 .rzw-mine[data-cursor]{outline:2px solid var(--rzd-accent,var(--dsw-alias-brand-primary));outline-offset:-2px;border-radius:5px;z-index:1}
+.rzw-fold{width:100%;border-top:0.5px solid var(--rzw-line);padding-top:2px}
+.rzw-foldbar{display:flex;align-items:center;gap:6px;width:100%;min-height:36px;padding:0 4px;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;font-weight:600;cursor:pointer;text-align:left}
+.rzw-foldbar:hover{background:var(--dsw-alias-bg-layer-2)}
+.rzw-foldbar:focus-visible{outline:2px solid var(--dsw-alias-label-primary);outline-offset:1px}
+.rzw-caret{width:14px;color:var(--dsw-alias-label-secondary)}
+.rzw-foldh{margin-left:auto;font-weight:400;font-size:12px;color:var(--dsw-alias-label-secondary)}
+.rzw-sect{font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary);margin:6px 0 -2px;text-align:left;width:100%}
+.rzw-hats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%}
+.rzw-hat{display:flex;flex-direction:column;align-items:center;gap:1px;min-height:56px;padding:4px 2px;border-radius:10px;border:0.5px solid var(--rzw-line);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;cursor:pointer}
+.rzw-hat:hover:not(:disabled){background:var(--dsw-alias-bg-layer-2)}
+.rzw-hat:disabled{opacity:.45;cursor:default}
+.rzw-hat[data-on]{border-color:var(--rzd-accent,var(--dsw-alias-brand-primary));box-shadow:inset 0 0 0 1px var(--rzd-accent,var(--dsw-alias-brand-primary))}
+.rzw-hat:focus-visible{outline:2px solid var(--dsw-alias-label-primary);outline-offset:1px}
+.rzw-hat-e{font-size:20px;line-height:1.1}.rzw-hat-t{font-size:11px}.rzw-hat-c{font-size:10px;color:var(--dsw-alias-label-secondary)}
+.rzw-stats{width:100%;display:flex;flex-direction:column;gap:6px}
+.rzw-statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%}
+.rzw-stat{display:flex;flex-direction:column;align-items:center;padding:6px 2px;border-radius:10px;background:var(--rzw-soft);text-align:center}
+.rzw-stat-v{font-weight:700;font-size:15px}.rzw-stat-k{font-size:10px;color:var(--dsw-alias-label-secondary);line-height:1.2}
 .rzw-hint{color:var(--dsw-alias-label-secondary);text-align:center;font-size:11px}
 .rzw .rzp-bars{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .rzw-meter{display:flex;flex-direction:column;gap:4px}
@@ -1335,6 +1408,14 @@ window.__ModuleLoader__.load({
 @media (prefers-reduced-motion:reduce){.rzw *{animation:none!important;transition:none!important}}
 `;
 
+		function Fold(p) {
+			const { title, hint, open, onToggle, children } = p;
+			return h('div', { className: 'rzw-fold', 'data-open': open ? '' : undefined },
+				h('button', { type: 'button', className: 'rzw-foldbar', 'aria-expanded': !!open, onClick: onToggle },
+					h('span', { className: 'rzw-caret', 'aria-hidden': true }, open ? '\u25BE' : '\u25B8'), h('span', { className: 'rzw-foldt' }, title), hint ? h('span', { className: 'rzw-foldh' }, hint) : null),
+				open ? children : null);
+		}
+
 		function PetPanel(p) {
 			const { store, pet, working } = p;
 			const st = useStore(store);
@@ -1342,10 +1423,11 @@ window.__ModuleLoader__.load({
 			const sp = PET_SPECIES[pet.species] || PET_SPECIES.chick;
 			const bar = (value, color, label) => h('div', { className: 'rzw-meter' }, h('span', null, label), h('div', { className: 'rzp-bar', role: 'meter', 'aria-label': label, 'aria-valuenow': Math.round(value), 'aria-valuemin': 0, 'aria-valuemax': 100, title: label + ' ' + Math.round(value) + '%' }, h('i', { style: { width: Math.round(value) + '%', background: color } })));
 			const broke = pet.coins < FEED_COST;
+			const [openHats, setOpenHats] = useState(false), [openStats, setOpenStats] = useState(false);
 			return h('div', { className: 'rzw-body' },
 				h('div', { className: 'rzw-stage' },
 					h('button', { type: 'button', className: 'rzp-pet', 'data-mood': mood, 'aria-label': 'Pet ' + pet.name, onClick: () => store.pet.pat() },
-						h('span', { className: 'rzp-face' }, sp.emoji),
+						h('span', { className: 'rzp-face' }, sp.emoji, hatOf(pet)),
 						MOOD_BUBBLE[mood] ? h('span', { className: 'rzp-bubble', 'aria-hidden': true }, MOOD_BUBBLE[mood]) : null),
 					h('div', { className: 'rzw-name' }, pet.name),
 					h('div', { className: 'rzw-sub' }, 'Lv ' + petLevel(pet.xp) + ' \u00B7 ' + pet.coins + ' coins')),
@@ -1355,7 +1437,20 @@ window.__ModuleLoader__.load({
 					h('button', { type: 'button', className: 'rzw-btn', title: broke ? 'Need ' + FEED_COST + ' coins' : 'Feed', disabled: broke, onClick: () => store.pet.feed() }, 'Feed \u00B7 ' + FEED_COST),
 					h('button', { type: 'button', className: 'rzw-btn', onClick: () => store.pet.play() }, 'Play'),
 					h('button', { type: 'button', className: 'rzw-btn', onClick: () => store.pet.pat() }, 'Pat')),
-				h('div', { className: 'rzw-hint' }, 'Finished chats and games earn coins.'));
+				h('div', { className: 'rzw-hint' }, 'Finished chats and games earn coins.'),
+				h(Fold, { title: 'Hats', hint: (pet.hats || []).length + ' owned', open: openHats, onToggle: () => setOpenHats((v) => !v) },
+				h('div', { className: 'rzw-hats', role: 'radiogroup', 'aria-label': 'Hats' }, HAT_IDS.map((id) => {
+					const h0 = HATS[id], owned = id === 'none' || (pet.hats || []).includes(id), worn = (pet.hat || 'none') === id, short = !owned && pet.coins < h0.cost;
+					return h('button', { key: id, type: 'button', role: 'radio', 'aria-checked': worn, className: 'rzw-hat', 'data-on': worn ? '' : undefined, 'data-locked': !owned ? '' : undefined, disabled: short, title: owned ? (worn ? 'Wearing' : 'Wear it') : h0.cost + ' coins', onClick: () => (owned ? store.pet.wearHat(id) : store.pet.buyHat(id)) },
+						h('span', { className: 'rzw-hat-e', 'aria-hidden': true }, h0.emoji || '\u2205'), h('span', { className: 'rzw-hat-t' }, h0.label), !owned ? h('span', { className: 'rzw-hat-c' }, h0.cost + ' coins') : null);
+				}))),
+				h(Fold, { title: 'Stats', hint: 'Lv ' + petLevel(pet.xp), open: openStats, onToggle: () => setOpenStats((v) => !v) }, h(PetStats, { pet })));
+		}
+
+		function PetStats(p) {
+			const s = petStatsClean(p.pet.stats);
+			const rows = [['Chats finished', s.chats], ['Games played', s.games], ['Pats', s.pats], ['Feedings', s.feeds], ['Coins earned', s.coinsEarned], ['Coins spent', s.coinsSpent], ['Days together', s.days], ['Day streak', s.streak]];
+			return h('div', { className: 'rzw-stats' }, h('div', { className: 'rzw-statgrid' }, rows.map(([k, v]) => h('div', { key: k, className: 'rzw-stat' }, h('span', { className: 'rzw-stat-v' }, v), h('span', { className: 'rzw-stat-k' }, k)))));
 		}
 
 		// Shared shell for the two games: header, canvas, controls, game-over card.
@@ -1675,7 +1770,7 @@ window.__ModuleLoader__.load({
 			const minimized = s.windowMin;
 			const scale = clamp(Number(s.windowSize) || 1, 0.8, 1.6);
 			const width = WIN_W * scale;
-			const estimate = minimized ? 42 * scale : ({ pet: 313, snake: 448, tetris: 470, g2048: 440, mines: 440, pong: 380 }[s.windowTab] || 313) * scale;
+			const estimate = minimized ? 42 * scale : ({ pet: 340, snake: 448, tetris: 470, g2048: 440, mines: 440, pong: 380 }[s.windowTab] || 313) * scale;
 			const height = measured || estimate;
 			const unplaced = !(s.windowX >= 0 && s.windowY >= 0);
 			const buddyRect = unplaced ? st.buddy : null;
@@ -1883,6 +1978,24 @@ window.__ModuleLoader__.load({
 				any ? h(Slider, { label: 'Picture size', min: 20, max: 44, step: 2, value: s.avatarSize, unit: ' px', onChange: (v) => store.setSettings({ avatarSize: v }) }) : null);
 		}
 
+		const SOUND_LABELS = { finish: 'A chat finishes', waiting: 'A chat is waiting for you', error: 'A chat hits an error', coin: 'You earn coins', levelup: 'Your pet levels up', pet: 'You pat your pet', win: 'You win a game', lose: 'A game ends with no coins' };
+		function SoundCard(p) {
+			const { store } = p;
+			const st = useStore(store);
+			const s = st.settings;
+			const muted = s.soundMuted || [];
+			return h('section', { className: 'rzd-card', 'aria-label': 'Sounds' },
+				h('div', { className: 'rzd-col' }, h('h3', { className: 'rzd-title' }, 'Sounds'), h('div', { className: 'rzd-sub' }, 'Short, soft tones made on your computer. No files, no downloads. Off until you turn the volume up.')),
+				h(Slider, { label: 'Volume', min: 0, max: 100, step: 5, value: s.soundVolume, unit: '%', onChange: (v) => store.setSettings({ soundVolume: v }) }),
+				s.soundVolume > 0 ? h('div', { className: 'rzd-col', style: { gap: 8 } },
+					SOUND_EVENT_LIST.map((e) => h('div', { key: e, className: 'rzd-row' },
+						h('span', null, SOUND_LABELS[e]),
+						h('span', { className: 'rzd-row', style: { gap: 8 } },
+							h('button', { type: 'button', className: 'rzd-btn', 'aria-label': 'Hear: ' + SOUND_LABELS[e], onClick: () => store.playSoundNow(e) }, 'Play'),
+							h(Switch, { checked: !muted.includes(e), label: SOUND_LABELS[e], onChange: (v) => store.setSettings({ soundMuted: v ? muted.filter((x) => x !== e) : muted.concat([e]) }) })))),
+					h('div', { className: 'rzd-sub' }, 'Your computer may keep sounds quiet until you click somewhere in the app once.')) : null);
+		}
+
 		function BorderCard(p) {
 			const { store } = p;
 			const st = useStore(store);
@@ -1979,6 +2092,7 @@ window.__ModuleLoader__.load({
 					h(AccentCard, { store }),
 					h(LookCard, { store }),
 					h(AvatarCard, { store }),
+					h(SoundCard, { store }),
 					h(TintCard, { store }),
 					h(PetCard, { store }),
 					h('div', { className: 'rzd-row' },
@@ -1988,7 +2102,7 @@ window.__ModuleLoader__.load({
 		}
 
 		return {
-			__test: { avatarCss, lookCss, famContrast, LookCard, LibraryCard, withDefaults, G2048Panel, MinesPanel, PongPanel, allEffectsCss, StateEffectsCard, Celebration, PerchDock, Buddy, centerPiece, PetPanel, GameWindow, effectCss, borderCss, tintFor, hexRgb, clamp, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel, themeFrom, exportTheme, parseTheme, PRESETS },
+			__test: { Fold, SoundCard, PetStats, hatOf, avatarCss, lookCss, famContrast, LookCard, LibraryCard, withDefaults, G2048Panel, MinesPanel, PongPanel, allEffectsCss, StateEffectsCard, Celebration, PerchDock, Buddy, centerPiece, PetPanel, GameWindow, effectCss, borderCss, tintFor, hexRgb, clamp, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel, themeFrom, exportTheme, parseTheme, PRESETS },
 			inject: ['slots', 'connection'],
 			apply(ctx) {
 				const store = createStore(ctx.get('connection').rpc);
