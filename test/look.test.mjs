@@ -57,7 +57,7 @@ test('avatars: nothing is drawn unless a side is switched on and has a face', ()
 test('avatars: emoji, pet and image faces target the right rows and stay safe', () => {
   const css = k.avatarCss({ avatarAssistantKind: 'emoji', avatarAssistantEmoji: '\u{1F989}', avatarUserKind: 'pet', avatarSize: 30 }, {}, '\u{1F98A}')
   assert.match(css, /\[data-chat-group-part="response"\][^{]*::before\{content:"\u{1F989}"/u); assert.match(css, /\[data-chat-flow-kind="user"\]::before\{content:"\u{1F98A}"/u)
-  assert.match(css, /width:30px;height:30px/); assert.match(css, /right:-40px/, 'your picture sits in the right margin'); assert.match(css, /left:-40px/, 'a reply picture sits in the left margin')
+  assert.match(css, /width:30px;height:30px/); assert.match(css, /float:right/, 'your picture sits in the right margin'); assert.match(css, /float:left/, 'a reply picture sits in the left margin'); assert.match(css, /margin:2px -40px -32px 0/); assert.match(css, /margin:2px 0 -32px -40px/)
   const png = 'data:image/png;base64,iVBORw0KGgo='
   const withImg = k.avatarCss({ avatarAssistantKind: 'image', avatarSize: 24 }, { assistant: png }); assert.match(withImg, /url\("data:image\/png;base64,iVBORw0KGgo="\)/); assert.match(withImg, /content:""/)
 })
@@ -89,10 +89,20 @@ test('avatars: a picture is never drawn on an empty or hidden reply row (it woul
 })
 
 test('avatars: pictures never take layout space (the chat must not shift when they appear)', () => {
-  const css = k.avatarCss({ avatarAssistantKind: 'emoji', avatarUserKind: 'emoji', avatarSize: 32 })
-  const rules = css.split('\n').filter((l) => l.includes('::before{content:'))
-  assert.equal(rules.length, 2)
-  for (const r of rules) { assert.match(r, /position:absolute/); assert.doesNotMatch(r, /margin|display:block|float|(^|[;{])height:auto/); assert.match(r, /pointer-events:none/) }
-  assert.match(css, /\{position:relative\}/, 'rows get a positioning context'); assert.match(css, /@media \(max-width:\d+px\)\{[^}]*display:none!important/, 'hidden when the window is too narrow for a side margin')
+  for (const size of [20, 26, 32, 44]) {
+    const css = k.avatarCss({ avatarAssistantKind: 'emoji', avatarUserKind: 'emoji', avatarSize: size })
+    const rules = css.split('\n').filter((l) => l.includes('::before{content:'))
+    assert.equal(rules.length, 2)
+    for (const r of rules) {
+      assert.match(r, /float:(left|right)/); assert.match(r, /pointer-events:none/); assert.doesNotMatch(r, /position:/)
+      // outer height of the float = top margin + height + bottom margin must be <= 0, so no line or row can grow
+      const m = /margin:(-?\d+)(?:px)? (-?\d+)(?:px)? (-?\d+)(?:px)? (-?\d+)(?:px)?/.exec(r), hgt = Number(/height:(\d+)px/.exec(r)[1])
+      assert.ok(Number(m[1]) + hgt + Number(m[3]) <= 0, `outer height ${Number(m[1]) + hgt + Number(m[3])} for size ${size}`)
+      // outer WIDTH (left margin + width + right margin) must be <= 0 as well, so no text line is shortened
+      const w = Number(/width:(\d+)px/.exec(r)[1]); assert.ok(Number(m[4]) + w + Number(m[2]) <= 0, `outer width ${Number(m[4]) + w + Number(m[2])} for size ${size}`)
+    }
+    assert.doesNotMatch(css, /\{position:relative\}/, 'the app\'s own rows are left alone')
+    assert.match(css, /@media \(max-width:\d+px\)\{[^}]*display:none!important/, 'hidden when the window is too narrow for a side margin')
+  }
   assert.equal(k.avatarCss({}), '', 'nothing at all when off')
 })
