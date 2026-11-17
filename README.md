@@ -10,7 +10,7 @@ A design plugin for DeepSeek Harness (DSH). Backgrounds, a wallpaper and GIF hub
 - Window border: neon, rainbow, gold, stripes or fire, optionally only while a chat is working.
 - Chat colors: color a sidebar chat by a word in its title, so sub-chats named after a model (Opus, Sonnet, Haiku...) are easy to tell apart. Whole words only.
 - Themes: four one-click looks (Avatar, Cyberpunk, Minimal, Party) and Copy my look / Paste a theme to share yours as text. Themes never include your background, pet or GIPHY key.
-- Pet: a small pet under the chat box. Finished chats earn it coins; feed it, play with it, unlock new species. It never dies.
+- Pet and games window: a small draggable window that floats over every chat (drag the title bar, or use the arrow keys on it; minimize or close it; resize it with a slider). Tabs: Pet (feed it, play with it, unlock new species with coins), Snake and Tetris (keyboard and touch controls, best scores saved). Finished chats and games earn coins. The pet never dies.
 
 More is planned (pet mini-games, sound). See the issues.
 
@@ -30,7 +30,11 @@ Wallpapers work with no setup. For GIF search, create a free key at https://deve
 
 ## Tests
 
-`npm test` runs the offline tests (settings validation, tint matching, border/effect CSS, host relay). Needs Node 20+.
+`npm test` runs the offline tests (settings validation, tint matching, border/effect CSS, host relay, Snake and Tetris rules). Needs Node 20+.
+
+## Developing
+
+The browser half is built from `src/client.src.js` and `src/games.js`: edit those, then run `npm run build` to regenerate `lib/client.js` (`npm test` fails if it is out of date).
 
 ## Where things are stored
 

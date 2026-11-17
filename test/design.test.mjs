@@ -14,7 +14,7 @@ globalThis.window = { __ModuleLoader__: { load: (m) => { captured = m } } }
 await import(pathToFileURL(path.resolve('lib/client.js')).href + '?t=' + Date.now())
 const React = { createElement: () => null, useState: () => [0, () => {}], useEffect() {}, useRef: () => ({}), useCallback: (f) => f }
 const client = captured.factory((name) => { assert.equal(name, 'react'); return React })
-const { effectCss, borderCss, tintFor, hexRgb, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel, themeFrom, exportTheme, parseTheme, PRESETS } = client.__test
+const { effectCss, borderCss, tintFor, hexRgb, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel, themeFrom, exportTheme, parseTheme, PRESETS, centerPiece } = client.__test
 
 async function call(ep, payload) {
   const r = host.rpcRoute(ep)
@@ -302,5 +302,16 @@ test('hardening: oversized requests and encoded uploads are refused early', asyn
   assert.equal(huge.status, 413, 'body over the request limit')
   const bad = await call('applyData', { ext: 'gif', base64: 'A'.repeat(56_000_000) })
   assert.match(bad.error.message, /40 MB/, 'under the request limit but over 40 MB once decoded')
+})
+test('preview pieces are centred by their real bounding box', async () => {
+  const { PIECES } = await import(pathToFileURL(path.resolve('src/games.js')).href)
+  for (const type of Object.keys(PIECES)) {
+    const o = centerPiece(type, 5, 4, 0.8)
+    const cs = PIECES[type][0]
+    const xs = cs.map((c) => o.ox + c[0] * 0.8), ys = cs.map((c) => o.oy + c[1] * 0.8)
+    const left = Math.min(...xs), right = 5 - (Math.max(...xs) + 0.8), top = Math.min(...ys), bottom = 4 - (Math.max(...ys) + 0.8)
+    assert.ok(Math.abs(left - right) < 1e-9, type + ' horizontal'); assert.ok(Math.abs(top - bottom) < 1e-9, type + ' vertical')
+    assert.ok(left >= 0 && top >= 0, type + ' inside the box')
+  }
 })
 test.after(() => fs.rmSync(dir, { recursive: true, force: true }))

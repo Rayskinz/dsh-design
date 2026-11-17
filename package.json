@@ -1,6 +1,6 @@
 {
     "name":  "@rayskinz/dsh-design",
-    "version":  "0.4.1",
+    "version":  "0.5.0",
     "description":  "Rayskinz DSH Design: chat backgrounds from a wallpaper and GIF hub, working-chat effects, window borders and chat colors, in one Design Options page.",
     "license":  "MIT",
     "author":  "Rayskinz",
@@ -30,6 +30,9 @@
                 },
     "files":  [
                   "lib",
+                  "src",
+                  "tools",
+                  "test",
                   "locale",
                   "docs",
                   "icon.svg",
@@ -50,6 +53,7 @@
                            }
             },
     "scripts":  {
-                    "test":  "node --test test/design.test.mjs"
+                    "build":  "node tools/build-client.mjs",
+                    "test":  "node tools/build-client.mjs --check \u0026\u0026 node --test test/design.test.mjs test/games.test.mjs"
                 }
 }
