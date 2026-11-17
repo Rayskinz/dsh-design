@@ -14,7 +14,7 @@ globalThis.window = { __ModuleLoader__: { load: (m) => { captured = m } } }
 await import(pathToFileURL(path.resolve('lib/client.js')).href + '?t=' + Date.now())
 const React = { createElement: () => null, useState: () => [0, () => {}], useEffect() {}, useRef: () => ({}), useCallback: (f) => f }
 const client = captured.factory((name) => { assert.equal(name, 'react'); return React })
-const { effectCss, borderCss, tintFor, hexRgb } = client.__test
+const { effectCss, borderCss, tintFor, hexRgb, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel } = client.__test
 
 async function call(ep, payload) {
   const r = host.rpcRoute(ep)
@@ -110,4 +110,71 @@ test('host: wrong content type and bad envelope are refused', async () => {
   assert.equal((await res.json()).result.ok, false)
 })
 
+const NOW = 1_800_000_000_000
+const mk = (o = {}) => ({ ...host.defaultPet(NOW), ...o })
+
+test('pet: decays with time, clamps, ignores clock going backwards', () => {
+  const p = mk({ hunger: 50, joy: 50, lastTick: NOW })
+  const later = petTick(p, NOW + 60 * 60e3)
+  assert.ok(Math.abs(later.hunger - 40) < 0.01, 'hunger -10/hour'); assert.ok(Math.abs(later.joy - (50 - 60 / 9)) < 0.01)
+  assert.equal(petTick(p, NOW + 30 * 24 * 3600e3).hunger, 50 - (48 * 60) / 6 < 0 ? 0 : 50 - 48 * 10, 'capped at 48h')
+  assert.equal(petTick(p, NOW - 5000), p, 'time going backwards changes nothing')
+  assert.equal(petTick(p, NOW + 500), p, 'under a second changes nothing')
+  assert.equal(petTick(mk({ hunger: 1, lastTick: NOW }), NOW + 3 * 3600e3).hunger, 0)
+})
+
+test('pet: feed costs coins and never goes over 100', () => {
+  const fed = petFeed(mk({ coins: 5, hunger: 90 }))
+  assert.equal(fed.coins, 3); assert.equal(fed.hunger, 100); assert.equal(fed.xp, 1)
+  const broke = mk({ coins: 1 }); assert.equal(petFeed(broke), broke)
+})
+
+test('pet: play, pat, reward', () => {
+  const played = petPlay(mk({ joy: 90, hunger: 2 }))
+  assert.equal(played.joy, 100); assert.equal(played.hunger, 0); assert.equal(played.xp, 2)
+  assert.equal(petPat(mk({ joy: 10 })).joy, 14)
+  const r = petReward(mk({ coins: 0, xp: 0 })); assert.equal(r.coins, 3); assert.equal(r.xp, 10)
+})
+
+test('pet: buying species', () => {
+  const p = mk({ coins: 100 })
+  const dog = petBuy(p, 'dog'); assert.equal(dog.coins, 60); assert.deepEqual(dog.unlocked, ['chick', 'cat', 'dog']); assert.equal(dog.species, 'dog')
+  assert.equal(petBuy(dog, 'dog'), dog, 'already owned')
+  assert.equal(petBuy(p, 'dragon'), p, 'too expensive')
+  assert.equal(petBuy(p, 'unicorn'), p, 'unknown species')
+})
+
+test('pet: mood and level', () => {
+  assert.equal(petMood(mk({ hunger: 5 }), true), 'working')
+  assert.equal(petMood(mk({ hunger: 5, joy: 90 }), false), 'hungry')
+  assert.equal(petMood(mk({ hunger: 90, joy: 5 }), false), 'sad')
+  assert.equal(petMood(mk({ hunger: 90, joy: 90 }), false), 'happy')
+  assert.equal(petMood(mk({ hunger: 50, joy: 50 }), false), 'idle')
+  assert.equal(petLevel(0), 1); assert.equal(petLevel(20), 2); assert.equal(petLevel(80), 3); assert.equal(petLevel(-5), 1)
+})
+
+test('pet: sanitize hostile saved data', () => {
+  const p = host.sanitizePet({ name: '  <b>Rex</b>\u0007  ', species: 'dragon', unlocked: ['dog', 'nonsense'], hunger: 'x', joy: 500, coins: -4, born: 9e15, lastTick: 9e15 }, NOW)
+  assert.equal(p.name, 'bRex/b'); assert.equal(p.species, 'chick', 'locked species falls back'); assert.deepEqual(p.unlocked, ['chick', 'dog'])
+  assert.equal(p.hunger, 80); assert.equal(p.joy, 100); assert.equal(p.coins, 0); assert.ok(p.born <= NOW); assert.ok(p.lastTick <= NOW)
+  assert.equal(host.sanitizePet(null, NOW).name, 'Pixel')
+  assert.equal(host.sanitizePet({ hunger: 33.337 }, NOW).hunger, 33.34)
+})
+
+test('host: pet round trip', async () => {
+  const first = (await call('getPet')).value; assert.equal(first.name, 'Pixel')
+  const saved = (await call('setPet', { ...first, name: 'Biscuit', coins: 50, species: 'cat' })).value
+  assert.equal(saved.name, 'Biscuit')
+  const again = (await call('getPet')).value; assert.equal(again.coins, 50); assert.equal(again.species, 'cat')
+  assert.equal((await call('setPet', { species: 'dragon' })).value.species, 'chick')
+})
+test('host: private and local addresses are refused', async () => {
+  for (const bad of ['localhost', '127.0.0.1', '10.1.2.3', '172.16.0.9', '172.31.255.1', '192.168.1.1', '169.254.169.254', '100.64.0.1', '0.0.0.0', '224.0.0.1', '[::1]', '[fd12::1]', '[fe80::1]', '[::ffff:7f00:1]', 'printer', 'nas.local', 'x.internal', 'a.localhost']) {
+    assert.equal(host.isPrivateHost(new URL('https://' + bad + '/x.gif').hostname), true, bad)
+    const r = await call('applyLink', { url: 'https://' + bad + '/x.gif' })
+    assert.equal(r.ok, false, bad); assert.match(r.error.message, /local network|this computer/, bad)
+  }
+  for (const good of ['example.com', '8.8.8.8', 'i.imgur.com', '172.32.0.1', '11.0.0.1']) assert.equal(host.isPrivateHost(good), false, good)
+  assert.match((await call('applyLink', { url: 'https://user:pw@example.com/x.gif' })).error.message, /username/)
+})
 test.after(() => fs.rmSync(dir, { recursive: true, force: true }))

@@ -8,6 +8,7 @@ Make DeepSeek Harness look like yours. Everything lives on one page: **Settings 
 - **Background controls**: panel see-through, darken, blur, on/off switch.
 - **Window border**: neon, rainbow, gold, stripes or fire frame around the app, with an only-while-working option.
 - **Chat colors**: tint a sidebar chat by a word in its title (for example Opus, Sonnet, Haiku sub-chats).
+- **Pet**: a little pet under the chat box that earns coins when your chats finish.
 - **Working chat effect**: how a running chat looks in the sidebar. Rainbow wave, pulse, scanner and ember, with cycle time and color.
 
 ## Good to know
