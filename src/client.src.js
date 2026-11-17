@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
 			bgEnabled: true, panel: 55, dim: 0, blur: 0, effect: 'off', speed: 3, effectColor: '#60a5fa', giphyKeySet: false,
 			borderStyle: 'off', borderWidth: 2, borderColor: '#7c5cff', borderOnlyWorking: false,
 			intensity: 70, stateEffects: { warning: 'pulse', error: 'off', done: 'off' }, stateColors: { warning: '#fbbf24', error: '#f87171', done: '#4ade80' },
-			celebrate: 'off', celebrateOnGame: true, accent: '', accentEnabled: false, fontFamily: 'default', fontSize: 0, lineSpacing: 0, userBubble: 'default', chatWidth: 0, familyTint: true, lineageBadges: true,
+			celebrate: 'off', celebrateOnGame: true, accent: '', accentEnabled: false, fontFamily: 'default', fontSize: 0, lineSpacing: 0, userBubble: 'default', chatWidth: 0, avatarAssistantKind: 'none', avatarUserKind: 'none', avatarAssistantEmoji: '\u{1F916}', avatarUserEmoji: '\u{1F9D1}', avatarSize: 26, familyTint: true, lineageBadges: true,
 			tintEnabled: false, petEnabled: false, windowX: -1, windowY: -1, windowTab: 'pet', windowMin: false, windowOpen: false, windowSize: 1,
 			tintRules: [
 				{ match: 'opus', color: '#a78bfa' }, { match: 'sonnet', color: '#60a5fa' }, { match: 'haiku', color: '#4ade80' },
@@ -279,7 +279,7 @@ window.__ModuleLoader__.load({
 
 		// ------------------------------------------------------------------ store
 		function createStore(rpc) {
-			let state = { ready: false, busy: '', error: '', settings: withDefaults(DEFAULTS), bg: { has: false }, pet: null, lib: libEmpty(), thumbs: {}, ctx: { chat: null, space: null, mood: null, tick: 0 }, shown: { id: null, why: 'none' }, working: false, toast: '', buddy: null, say: '', perch: false, burst: null };
+			let state = { ready: false, busy: '', error: '', settings: withDefaults(DEFAULTS), bg: { has: false }, pet: null, lib: libEmpty(), thumbs: {}, avatars: { assistant: '', user: '' }, ctx: { chat: null, space: null, mood: null, tick: 0 }, shown: { id: null, why: 'none' }, working: false, toast: '', buddy: null, say: '', perch: false, burst: null };
 			const subs = new Set();
 			let saveTimer = 0;
 			const emit = () => subs.forEach((f) => f());
@@ -296,8 +296,8 @@ window.__ModuleLoader__.load({
 			async function load() {
 				for (let i = 0; i < 6; i++) {
 					try {
-						const [settings, data, pet, libr, th] = await Promise.all([call('getSettings'), call('data'), call('getPet'), call('libList').catch(() => ({ lib: libEmpty() })), call('libThumbs').catch(() => ({ thumbs: {} }))]);
-						set({ ready: true, settings: withDefaults(settings), bg: toBg(data), pet: petTick(pet, Date.now()), lib: libClean(libr && libr.lib), thumbs: (th && th.thumbs) || {}, ctx: { ...state.ctx, seed: (Date.now() ^ 0x5bd1e995) >>> 0 }, error: '' });
+						const [settings, data, pet, libr, th, av] = await Promise.all([call('getSettings'), call('data'), call('getPet'), call('libList').catch(() => ({ lib: libEmpty() })), call('libThumbs').catch(() => ({ thumbs: {} })), call('avatarGet').catch(() => ({ assistant: '', user: '' }))]);
+						set({ ready: true, settings: withDefaults(settings), bg: toBg(data), pet: petTick(pet, Date.now()), lib: libClean(libr && libr.lib), thumbs: (th && th.thumbs) || {}, avatars: { assistant: avatarImage(av && av.assistant), user: avatarImage(av && av.user) }, ctx: { ...state.ctx, seed: (Date.now() ^ 0x5bd1e995) >>> 0 }, error: '' });
 						refreshShown();
 						return;
 					} catch (e) {
@@ -476,6 +476,12 @@ window.__ModuleLoader__.load({
 				applyBackground,
 				clearBackground,
 				removeEntry,
+				setAvatar: async (side, image) => {
+					try {
+						const r = await call('avatarSet', { side, image });
+						set({ avatars: { ...state.avatars, [side]: avatarImage(r.image) }, error: '' });
+					} catch (e) { set({ error: e.message }); }
+				},
 				saveLib,
 				setCtx,
 				refreshShown,
@@ -509,9 +515,11 @@ window.__ModuleLoader__.load({
 			frameStyle.setAttribute('data-rayskinz-design', 'border');
 			const tintStyle = document.createElement('style');
 			tintStyle.setAttribute('data-rayskinz-design', 'tint');
+			const avatarStyle = document.createElement('style');
+			avatarStyle.setAttribute('data-rayskinz-design', 'avatar');
 			const lookStyle = document.createElement('style');
 			lookStyle.setAttribute('data-rayskinz-design', 'look');
-			document.head.append(bgStyle, fxStyle, frameStyle, tintStyle, lookStyle);
+			document.head.append(bgStyle, fxStyle, frameStyle, tintStyle, lookStyle, avatarStyle);
 			const FRAME = 'rzd-frame';
 			let frame = null;
 			let tinted = new Set();
@@ -591,7 +599,12 @@ window.__ModuleLoader__.load({
 				const accent = s.accentEnabled && /^#[0-9a-f]{6}$/i.test(s.accent || '') ? s.accent : '';
 				const text = accent ? (famContrast(accent, '#ffffff') >= famContrast(accent, '#111111') ? '#ffffff' : '#111111') : '';
 				lookStyle.textContent = lookCss({ ...s, accentText: text }, { size });
-			}			function applyAccent(s) {
+			}			function applyAvatars(s) {
+				const st = store.get();
+				const species = st.pet ? (PET_SPECIES[st.pet.species] || PET_SPECIES.chick) : null;
+				avatarStyle.textContent = avatarCss(s, st.avatars, species ? species.emoji : '');
+			}
+			function applyAccent(s) {
 				const on = !!(s.accentEnabled && /^#[0-9a-f]{6}$/i.test(s.accent || ''));
 				for (const k of ACCENT_TOKENS) body.style.removeProperty(k);
 				if (!on) return;
@@ -712,6 +725,7 @@ window.__ModuleLoader__.load({
 				applyTints(s);
 				applyAccent(s);
 				applyLook(s);
+				applyAvatars(s);
 			}
 
 			render();
@@ -731,6 +745,7 @@ window.__ModuleLoader__.load({
 			clearTimeout(ctxTimer);
 			clearTimeout(rotateTimer);
 			lookStyle.remove();
+			avatarStyle.remove();
 				clearTimeout(tintTimer);
 				clearTints();
 				for (const k of ACCENT_TOKENS) body.style.removeProperty(k);
@@ -777,6 +792,10 @@ window.__ModuleLoader__.load({
 .rzd-nothumb{display:flex;align-items:center;justify-content:center;height:100%;min-height:62px;font-size:22px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2)}
 .rzd-libname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%}
 .rzd-tab:disabled{opacity:.45;cursor:default}
+.rzd-emoji{width:38px;height:38px;font-size:20px;line-height:1;border-radius:10px;border:0.5px solid var(--dsw-alias-border-l2);background:transparent;cursor:pointer;padding:0}
+.rzd-emoji:hover{background:var(--dsw-alias-bg-layer-2)}
+.rzd-emoji[data-on]{border-color:var(--rzd-accent,var(--dsw-alias-brand-primary));box-shadow:inset 0 0 0 1px var(--rzd-accent,var(--dsw-alias-brand-primary))}
+.rzd-avatar-prev{width:44px;height:44px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 1px var(--dsw-alias-border-l2)}
 .rzd-opt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;min-height:44px;padding:8px 12px;border-radius:12px;border:0.5px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;cursor:pointer}
 .rzd-opt:hover{background:var(--dsw-alias-bg-layer-2)}
 .rzd-opt[data-on]{border-color:var(--rzd-accent,var(--dsw-alias-brand-primary));box-shadow:inset 0 0 0 1px var(--rzd-accent,var(--dsw-alias-brand-primary))}
@@ -1799,6 +1818,71 @@ window.__ModuleLoader__.load({
 				h('div', { className: 'rzd-chips', role: 'radiogroup', 'aria-label': 'Message bubble' }, BUBBLE_CHOICES.map((id) => h('button', { key: id, type: 'button', role: 'radio', 'aria-checked': s.userBubble === id, className: 'rzd-opt', 'data-on': s.userBubble === id ? '' : undefined, onClick: () => store.setSettings({ userBubble: id }) }, h('span', { className: 'rzd-opt-t' }, LOOK_BUBBLES[id].label), h('span', { className: 'rzd-opt-h' }, LOOK_BUBBLES[id].hint)))),
 				(s.fontSize !== 0 || s.lineSpacing !== 0 || s.chatWidth !== 0 || s.fontFamily !== 'default' || s.userBubble !== 'default') ? h('div', { className: 'rzd-row', style: { justifyContent: 'flex-start' } }, h('button', { type: 'button', className: 'rzd-btn', onClick: () => store.setSettings({ fontFamily: 'default', fontSize: 0, lineSpacing: 0, chatWidth: 0, userBubble: 'default' }) }, 'Back to app default')) : null);
 		}
+		// A face above each reply and each of your messages: an emoji, your pet, or a small picture you upload.
+		function shrinkImage(file, size) {
+			return new Promise((ok, no) => {
+				const url = URL.createObjectURL(file);
+				const img = new Image();
+				img.onload = () => {
+					try {
+						const s = Math.min(size / img.naturalWidth, size / img.naturalHeight, 1);
+						const w = Math.max(1, Math.round(img.naturalWidth * s)), h2 = Math.max(1, Math.round(img.naturalHeight * s));
+						const sq = Math.min(img.naturalWidth, img.naturalHeight);
+						const cv = document.createElement('canvas'); cv.width = size; cv.height = size;
+						const c = cv.getContext('2d');
+						c.drawImage(img, (img.naturalWidth - sq) / 2, (img.naturalHeight - sq) / 2, sq, sq, 0, 0, size, size);
+						void w; void h2;
+						let out = cv.toDataURL('image/webp', 0.85);
+						if (!/^data:image\/webp/.test(out)) out = cv.toDataURL('image/png');
+						URL.revokeObjectURL(url);
+						ok(out.length <= 110000 ? out : cv.toDataURL('image/jpeg', 0.6));
+					} catch (e) { URL.revokeObjectURL(url); no(e); }
+				};
+				img.onerror = () => { URL.revokeObjectURL(url); no(new Error('That file is not a picture I can read.')); };
+				img.src = url;
+			});
+		}
+
+		function AvatarSide(p) {
+			const { store, side, label } = p;
+			const st = useStore(store);
+			const s = st.settings;
+			const kindKey = side === 'assistant' ? 'avatarAssistantKind' : 'avatarUserKind';
+			const emojiKey = side === 'assistant' ? 'avatarAssistantEmoji' : 'avatarUserEmoji';
+			const kind = s[kindKey];
+			const [err, setErr] = useState('');
+			const onFile = async (e) => {
+				const f = e.target.files && e.target.files[0];
+				e.target.value = '';
+				if (!f) return;
+				if (!/^image\/(png|jpe?g|webp|gif)$/.test(f.type)) return setErr('Use a png, jpg, webp or gif picture.');
+				if (f.size > 8 * 1024 * 1024) return setErr('That picture is over 8 MB.');
+				setErr('');
+				try { await store.setAvatar(side, await shrinkImage(f, 96)); store.setSettings({ [kindKey]: 'image' }); } catch (x) { setErr(x.message); }
+			};
+			return h('div', { className: 'rzd-col', style: { gap: 8 } },
+				h('div', { className: 'rzd-sub' }, label),
+				h('div', { className: 'rzd-tabs', role: 'radiogroup', 'aria-label': label + ' picture type' }, [['none', 'None'], ['emoji', 'Emoji'], ['pet', 'My pet'], ['image', 'Picture']].map(([id, text]) => h('button', { key: id, type: 'button', role: 'radio', 'aria-checked': kind === id, className: 'rzd-tab', 'data-on': kind === id ? '' : undefined, onClick: () => store.setSettings({ [kindKey]: id }) }, text))),
+				kind === 'emoji' ? h('div', { className: 'rzd-chips', role: 'radiogroup', 'aria-label': label + ' emoji' }, AVATAR_EMOJI.map((e) => h('button', { key: e, type: 'button', role: 'radio', 'aria-checked': s[emojiKey] === e, 'aria-label': e, className: 'rzd-emoji', 'data-on': s[emojiKey] === e ? '' : undefined, onClick: () => store.setSettings({ [emojiKey]: e }) }, e))) : null,
+				kind === 'image' ? h('div', { className: 'rzd-row', style: { justifyContent: 'flex-start', gap: 10 } },
+					st.avatars[side] ? h('img', { className: 'rzd-avatar-prev', src: st.avatars[side], alt: label + ' picture' }) : h('span', { className: 'rzd-sub' }, 'No picture yet.'),
+					h('label', { className: 'rzd-btn', style: { cursor: 'pointer' } }, st.avatars[side] ? 'Change picture' : 'Pick a picture', h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/gif', onChange: onFile, style: { display: 'none' } })),
+					st.avatars[side] ? h('button', { type: 'button', className: 'rzd-btn', onClick: () => store.setAvatar(side, '') }, 'Remove') : null,
+					err ? h('span', { className: 'rzd-err', role: 'alert' }, err) : null) : null);
+		}
+
+		function AvatarCard(p) {
+			const { store } = p;
+			const st = useStore(store);
+			const s = st.settings;
+			const any = s.avatarAssistantKind !== 'none' || s.avatarUserKind !== 'none';
+			return h('section', { className: 'rzd-card', 'aria-label': 'Chat pictures' },
+				h('div', { className: 'rzd-col' }, h('h3', { className: 'rzd-title' }, 'Chat pictures'), h('div', { className: 'rzd-sub' }, 'A small round picture above each reply and above each of your messages. Pictures stay on this computer.')),
+				h(AvatarSide, { store, side: 'assistant', label: 'Replies' }),
+				h(AvatarSide, { store, side: 'user', label: 'You' }),
+				any ? h(Slider, { label: 'Picture size', min: 20, max: 44, step: 2, value: s.avatarSize, unit: ' px', onChange: (v) => store.setSettings({ avatarSize: v }) }) : null);
+		}
+
 		function BorderCard(p) {
 			const { store } = p;
 			const st = useStore(store);
@@ -1894,16 +1978,17 @@ window.__ModuleLoader__.load({
 					h(BorderCard, { store }),
 					h(AccentCard, { store }),
 					h(LookCard, { store }),
+					h(AvatarCard, { store }),
 					h(TintCard, { store }),
 					h(PetCard, { store }),
 					h('div', { className: 'rzd-row' },
 						h('button', { type: 'button', className: 'rzd-btn', onClick: () => store.setSettings({ ...DEFAULTS, giphyKeySet: undefined, petEnabled: store.get().settings.petEnabled, windowX: store.get().settings.windowX, windowY: store.get().settings.windowY }) }, 'Reset all options'),
-						h('span', { className: 'rzd-credit' }, 'Rayskinz DSH Design 0.7.0')));
+						h('span', { className: 'rzd-credit' }, 'Rayskinz DSH Design 0.8.0')));
 			};
 		}
 
 		return {
-			__test: { lookCss, famContrast, LookCard, LibraryCard, withDefaults, G2048Panel, MinesPanel, PongPanel, allEffectsCss, StateEffectsCard, Celebration, PerchDock, Buddy, centerPiece, PetPanel, GameWindow, effectCss, borderCss, tintFor, hexRgb, clamp, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel, themeFrom, exportTheme, parseTheme, PRESETS },
+			__test: { avatarCss, lookCss, famContrast, LookCard, LibraryCard, withDefaults, G2048Panel, MinesPanel, PongPanel, allEffectsCss, StateEffectsCard, Celebration, PerchDock, Buddy, centerPiece, PetPanel, GameWindow, effectCss, borderCss, tintFor, hexRgb, clamp, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel, themeFrom, exportTheme, parseTheme, PRESETS },
 			inject: ['slots', 'connection'],
 			apply(ctx) {
 				const store = createStore(ctx.get('connection').rpc);

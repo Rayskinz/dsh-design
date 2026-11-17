@@ -48,3 +48,35 @@ test('look: fuzz - random settings never produce broken css', () => {
     assert.doesNotMatch(css, /undefined|NaN|null/, css); const opens = (css.match(/{/g) || []).length, closes = (css.match(/}/g) || []).length; assert.equal(opens, closes, css)
   }
 })
+
+test('avatars: nothing is drawn unless a side is switched on and has a face', () => {
+  assert.equal(k.avatarCss({}), ''); assert.equal(k.avatarCss({ avatarAssistantKind: 'none', avatarUserKind: 'none' }), '')
+  assert.equal(k.avatarCss({ avatarAssistantKind: 'image', avatarUserKind: 'image' }, {}), '', 'an image kind with no stored picture draws nothing')
+})
+
+test('avatars: emoji, pet and image faces target the right rows and stay safe', () => {
+  const css = k.avatarCss({ avatarAssistantKind: 'emoji', avatarAssistantEmoji: '\u{1F989}', avatarUserKind: 'pet', avatarSize: 30 }, {}, '\u{1F98A}')
+  assert.match(css, /\[data-chat-group-part="response"\]::before\{content:"\u{1F989}"/u); assert.match(css, /\[data-chat-flow-kind="user"\]::before\{content:"\u{1F98A}"/u)
+  assert.match(css, /width:30px;height:30px/); assert.match(css, /margin-left:auto/)
+  const png = 'data:image/png;base64,iVBORw0KGgo='
+  const withImg = k.avatarCss({ avatarAssistantKind: 'image', avatarSize: 24 }, { assistant: png }); assert.match(withImg, /url\("data:image\/png;base64,iVBORw0KGgo="\)/); assert.match(withImg, /content:""/)
+})
+
+test('avatars: hostile emoji and image values are rejected, never put into css', () => {
+  for (const bad of ['"; } body{display:none} .x{', '\\', '<script>', 'a'.repeat(20), '', '   ', 5, null, 'x\ny', "it's"]) assert.equal(k.avatarEmoji(bad), k.AVATAR_EMOJI[0], JSON.stringify(bad))
+  assert.equal(k.avatarEmoji('\u{1F431}'), '\u{1F431}'); assert.equal(k.avatarEmoji(' \u{1F431} '), '\u{1F431}'); assert.equal(k.avatarEmoji('\u{1F468}\u200D\u{1F4BB}'), '\u{1F468}\u200D\u{1F4BB}', 'a joined emoji is allowed')
+  for (const bad of ['javascript:alert(1)', 'data:image/svg+xml;base64,PHN2Zz4=', 'data:text/html;base64,AAAA', 'data:image/png;base64,AA"); body{display:none}', 'data:image/png;base64,' + 'A'.repeat(130000), 5, null, 'https://evil.example/x.png']) assert.equal(k.avatarImage(bad), '', String(bad).slice(0, 50))
+  assert.doesNotMatch(k.avatarCss({ avatarAssistantKind: 'emoji', avatarAssistantEmoji: '"; } body{display:none} .x{' }), /display:none/)
+  assert.doesNotMatch(k.avatarCss({ avatarAssistantKind: 'image' }, { assistant: 'data:image/png;base64,AA"); body{display:none}' }), /display:none/)
+})
+
+test('avatars: size is clamped 20-44 and css is always balanced', () => {
+  assert.match(k.avatarCss({ avatarAssistantKind: 'emoji', avatarSize: 5 }), /width:20px/); assert.match(k.avatarCss({ avatarAssistantKind: 'emoji', avatarSize: 999 }), /width:44px/); assert.match(k.avatarCss({ avatarAssistantKind: 'emoji', avatarSize: 'x' }), /width:26px/)
+  const css = k.avatarCss({ avatarAssistantKind: 'emoji', avatarUserKind: 'emoji' }); assert.equal((css.match(/{/g) || []).length, (css.match(/}/g) || []).length)
+  assert.equal(k.avatarFace('pet', '', '', '').text, k.AVATAR_EMOJI[0], 'a missing pet emoji falls back to the robot')
+  for (const e of k.AVATAR_EMOJI) assert.equal(k.avatarEmoji(e), e)
+})
+
+test('look: lookCss output and avatar output can be joined without breaking either', () => {
+  const css = [k.lookCss({ userBubble: 'soft' }), k.avatarCss({ avatarAssistantKind: 'emoji' })].filter(Boolean).join('\n'); assert.equal((css.match(/{/g) || []).length, (css.match(/}/g) || []).length)
+})

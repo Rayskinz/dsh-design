@@ -70,3 +70,54 @@ export function lookCss(s, host = {}) {
   if (bubble) out.push(bubble)
   return out.join('\n')
 }
+
+// ---------------------------------------------------------------------------- avatars
+// A small round picture above each assistant reply and above each of your messages. CSS only: it adds a
+// ::before to the app's own row markers and never touches the app's markup. Kinds: none | emoji | pet | image.
+export const AVATAR_KINDS = ['none', 'emoji', 'pet', 'image']
+export const AVATAR_EMOJI = ['\u{1F916}', '\u{1F989}', '\u{1F98A}', '\u{1F431}', '\u{1F436}', '\u{1F409}', '\u{1F419}', '\u{1F438}', '\u{1F47E}', '\u{1F9D9}', '\u{1F680}', '\u{1F31F}', '\u{1F525}', '\u{1F9E0}', '\u{26A1}', '\u{1F338}']
+
+const avatarSizeOf = (n) => Math.min(44, Math.max(20, Math.round(Number.isFinite(Number(n)) ? Number(n) : 26)))
+
+// An emoji (or short symbol) is safe to place in CSS content only if it has no quote, backslash, angle bracket,
+// control character or line break, and is at most 8 characters. Anything else falls back to the robot.
+export function avatarEmoji(v) {
+  if (typeof v !== 'string') return AVATAR_EMOJI[0]
+  const s = v.trim()
+  if (!s || [...s].length > 8 || /["'\\<>`{}();\u0000-\u001f\u007f\u2028\u2029]/.test(s)) return AVATAR_EMOJI[0]
+  return s
+}
+
+// A stored picture must be a small png/jpeg/webp data URL.
+export function avatarImage(v) {
+  return typeof v === 'string' && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length <= 120000 ? v : ''
+}
+
+// One side's face: { text } or { image } or null. `petEmoji` is the current species emoji.
+export function avatarFace(kind, emoji, image, petEmoji) {
+  if (kind === 'emoji') return { text: avatarEmoji(emoji) }
+  if (kind === 'pet') return { text: avatarEmoji(petEmoji) }
+  if (kind === 'image') { const img = avatarImage(image); return img ? { image: img } : null }
+  return null
+}
+
+function avatarRule(selector, face, size, side) {
+  const base = selector + '::before{content:' + (face.text ? JSON.stringify(face.text) : '""') + ';display:flex;align-items:center;justify-content:center;box-sizing:border-box;'
+    + 'width:' + size + 'px;height:' + size + 'px;flex:none;border-radius:50%;margin:0 0 6px 0;'
+    + (side === 'user' ? 'margin-left:auto;' : '')
+    + 'font-size:' + Math.round(size * 0.58) + 'px;line-height:1;overflow:hidden;'
+    + (face.image ? 'background:center/cover no-repeat url("' + face.image + '");' : 'background:color-mix(in srgb,var(--dsw-alias-label-primary) 9%,var(--dsw-alias-bg-layer-1));')
+    + 'box-shadow:0 0 0 1px color-mix(in srgb,var(--dsw-alias-label-primary) 14%,transparent)}'
+  return base
+}
+
+// All avatar css. `s` = settings, `images` = { assistant, user } data URLs from the host, `petEmoji` the pet's emoji.
+export function avatarCss(s, images = {}, petEmoji = '') {
+  const size = avatarSizeOf(s.avatarSize)
+  const out = []
+  const a = avatarFace(s.avatarAssistantKind, s.avatarAssistantEmoji, images.assistant, petEmoji)
+  const u = avatarFace(s.avatarUserKind, s.avatarUserEmoji, images.user, petEmoji)
+  if (a) out.push(avatarRule('[data-chat-group-part="response"]', a, size, 'assistant'))
+  if (u) out.push(avatarRule('[data-chat-flow-kind="user"]', u, size, 'user'))
+  return out.join('\n')
+}
