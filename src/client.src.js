@@ -279,7 +279,7 @@ window.__ModuleLoader__.load({
 
 		// ------------------------------------------------------------------ store
 		function createStore(rpc) {
-			let state = { ready: false, busy: '', error: '', settings: withDefaults(DEFAULTS), bg: { has: false }, pet: null, working: false, toast: '', buddy: null, say: '', perch: false, burst: null };
+			let state = { ready: false, busy: '', error: '', settings: withDefaults(DEFAULTS), bg: { has: false }, pet: null, lib: libEmpty(), thumbs: {}, ctx: { chat: null, space: null, mood: null, tick: 0 }, shown: { id: null, why: 'none' }, working: false, toast: '', buddy: null, say: '', perch: false, burst: null };
 			const subs = new Set();
 			let saveTimer = 0;
 			const emit = () => subs.forEach((f) => f());
@@ -296,8 +296,9 @@ window.__ModuleLoader__.load({
 			async function load() {
 				for (let i = 0; i < 6; i++) {
 					try {
-						const [settings, data, pet] = await Promise.all([call('getSettings'), call('data'), call('getPet')]);
-						set({ ready: true, settings: withDefaults(settings), bg: toBg(data), pet: petTick(pet, Date.now()), error: '' });
+						const [settings, data, pet, libr, th] = await Promise.all([call('getSettings'), call('data'), call('getPet'), call('libList'), call('libThumbs').catch(() => ({ thumbs: {} }))]);
+						set({ ready: true, settings: withDefaults(settings), bg: toBg(data), pet: petTick(pet, Date.now()), lib: libClean(libr.lib), thumbs: th.thumbs || {}, ctx: { ...state.ctx, seed: (Date.now() ^ 0x5bd1e995) >>> 0 }, error: '' });
+						refreshShown();
 						return;
 					} catch (e) {
 						if (i === 5) set({ ready: true, error: 'Could not reach the Design plugin host: ' + (e && e.message) });
@@ -314,26 +315,86 @@ window.__ModuleLoader__.load({
 					call('setSettings', toSave).catch((e) => set({ error: 'Could not save settings: ' + e.message }));
 				}, 350);
 			}
-			async function applyBackground(kind, payload) {
-				set({ busy: 'Applying background…', error: '' });
+			// A small JPEG preview of a library entry, drawn in the page (the host cannot decode GIFs).
+			async function makeThumb(dataUrl, ext) {
 				try {
-					await call(kind, payload);
-					const bg = toBg(await call('data'));
-					set({ bg, busy: '' });
+					const video = /^(mp4|webm)$/.test(ext);
+					const el = document.createElement(video ? 'video' : 'img');
+					if (video) { el.muted = true; el.playsInline = true; }
+					await new Promise((ok, no) => { el.onload = el.onloadeddata = ok; el.onerror = no; el.src = dataUrl; setTimeout(no, 8000); });
+					const w = video ? el.videoWidth : el.naturalWidth, h2 = video ? el.videoHeight : el.naturalHeight;
+					if (!w || !h2) return null;
+					const k = Math.min(1, 240 / Math.max(w, h2));
+					const cv = document.createElement('canvas');
+					cv.width = Math.max(1, Math.round(w * k)); cv.height = Math.max(1, Math.round(h2 * k));
+					cv.getContext('2d').drawImage(el, 0, 0, cv.width, cv.height);
+					const out = cv.toDataURL('image/jpeg', 0.7);
+					return out.length < 110000 ? out : cv.toDataURL('image/jpeg', 0.4);
+				} catch { return null; }
+			}
+			const cache = new Map(); // id -> { url, ext, version } for the entries shown in this page
+			async function fetchEntry(id) {
+				if (cache.has(id)) return cache.get(id);
+				const d = await call('libData', { id });
+				const e = { has: true, version: id, ext: d.ext, mime: d.mime, url: 'data:' + d.mime + ';base64,' + d.base64 };
+				cache.set(id, e);
+				if (cache.size > 6) cache.delete(cache.keys().next().value);
+				return e;
+			}
+			async function refreshShown() {
+				const s = state;
+				const pick = libPick(s.lib, { chat: s.ctx.chat, space: s.ctx.space, mood: s.ctx.mood, tick: s.ctx.tick, seed: s.ctx.seed || 1 });
+				if (pick.id === s.shown.id && pick.why === s.shown.why) return;
+				if (!pick.id) { set({ shown: pick, bg: { has: false } }); return; }
+				try {
+					const bg = await fetchEntry(pick.id);
+					if (state.lib.items.some((i) => i.id === pick.id)) set({ shown: pick, bg });
+				} catch (e) { set({ error: e.message }); }
+			}
+			function setCtx(patch) {
+				const next = { ...state.ctx, ...patch };
+				if (next.chat === state.ctx.chat && next.space === state.ctx.space && next.mood === state.ctx.mood && next.tick === state.ctx.tick) return;
+				set({ ctx: next });
+				refreshShown();
+			}
+			let libTimer = 0;
+			async function saveLib(next) {
+				const lib = libClean(next);
+				set({ lib });
+				refreshShown();
+				clearTimeout(libTimer);
+				libTimer = setTimeout(() => { call('libSet', { assign: lib.assign, playlist: lib.playlist, current: lib.current }).catch((e) => set({ error: 'Could not save: ' + e.message })); }, 300);
+			}
+			// Add a background to the library (from the hub, a link or a file) and make it the default.
+			async function applyBackground(kind, payload) {
+				set({ busy: 'Adding to your library\u2026', error: '' });
+				try {
+					const body = kind === 'apply' ? { url: payload.url, hub: true, name: payload.name } : kind === 'applyLink' ? { url: payload.url } : payload;
+					const r = await call('libAdd', body);
+					const lib = { ...libClean(r.lib), current: r.id };
+					set({ lib });
+					const d = await fetchEntry(r.id);
+					makeThumb(d.url, d.ext).then((thumb) => { if (thumb) call('libThumb', { id: r.id, thumb }).then(() => set({ thumbs: { ...state.thumbs, [r.id]: thumb } })).catch(() => {}); });
+					await saveLib(lib);
+					set({ busy: '' });
 					if (!state.settings.bgEnabled) setSettings({ bgEnabled: true });
 				} catch (e) {
 					set({ busy: '', error: e.message });
 				}
 			}
-			async function clearBackground() {
+			async function removeEntry(id) {
 				try {
-					await call('clear');
-					set({ bg: { has: false }, error: '' });
-				} catch (e) {
-					set({ error: e.message });
-				}
+					const r = await call('libRemove', { id });
+					cache.delete(id);
+					const thumbs = { ...state.thumbs }; delete thumbs[id];
+					set({ lib: libClean(r.lib), thumbs });
+					refreshShown();
+				} catch (e) { set({ error: e.message }); }
 			}
-			let petTimer = 0;
+			async function clearBackground() {
+				if (state.lib.current) await removeEntry(state.lib.current);
+				else set({ bg: { has: false }, error: '' });
+			}			let petTimer = 0;
 			let toastTimer = 0;
 			let sayTimer = 0;
 			function savePet() {
@@ -414,6 +475,10 @@ window.__ModuleLoader__.load({
 				setSettings,
 				applyBackground,
 				clearBackground,
+				removeEntry,
+				saveLib,
+				setCtx,
+				refreshShown,
 				clearError: () => set({ error: '' }),
 				saveGiphyKey: async (key) => {
 					try {
@@ -424,6 +489,7 @@ window.__ModuleLoader__.load({
 					}
 				},
 				dispose: () => {
+					clearTimeout(libTimer);
 					clearTimeout(saveTimer);
 					clearTimeout(petTimer);
 					clearTimeout(toastTimer);
@@ -530,6 +596,40 @@ window.__ModuleLoader__.load({
 				tintTimer = setTimeout(() => applyTints(store.get().settings), 120);
 			});
 			listMo.observe(document.body, { childList: true, subtree: true, characterData: true });
+			// Which chat is open, in which workspace, and what mood is it in? Read from the sidebar's own
+			// markers (the selected session row, its parent workspace row, its status dot). Playlist steps tick on a timer.
+			function readContext() {
+				const row = document.querySelector('[role="treeitem"][data-row-key^="session:"][aria-selected="true"]');
+				const chat = row ? libKeyOf(row.getAttribute('data-row-key')) : null;
+				let space = null;
+				if (row) {
+					const all = [...document.querySelectorAll('[role="treeitem"][data-row-key]')];
+					const at = all.indexOf(row);
+					for (let i = at - 1; i >= 0; i--) { const k = all[i].getAttribute('data-row-key'); if (k && k.startsWith('workspace:')) { space = libKeyOf(k); break; } }
+				}
+				const dot = row ? row.querySelector('svg[data-state]') : null;
+				return { chat, space, mood: dot ? libMoodOf(dot.getAttribute('data-state')) : null };
+			}
+			let ctxTimer = 0;
+			const ctxMo = new MutationObserver(() => {
+				clearTimeout(ctxTimer);
+				ctxTimer = setTimeout(() => store.setCtx(readContext()), 150);
+			});
+			ctxMo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-selected', 'data-state'] });
+			store.setCtx(readContext());
+			let rotateTimer = 0;
+			function armRotate() {
+				clearTimeout(rotateTimer);
+				const { lib } = store.get();
+				if (!lib.playlist.on || lib.playlist.ids.length < 2) return;
+				rotateTimer = setTimeout(() => { store.setCtx({ tick: store.get().ctx.tick + 1 }); armRotate(); }, lib.playlist.minutes * 60000);
+			}
+			let armedKey = '';
+			const unsubRotate = store.subscribe(() => {
+				const p = store.get().lib.playlist;
+				const k = [p.on, p.ids.join(','), p.minutes].join('|');
+				if (k !== armedKey) { armedKey = k; armRotate(); }
+			});
 			let box = null;
 			let media = null;
 			let dim = null;
@@ -614,6 +714,10 @@ window.__ModuleLoader__.load({
 				off();
 				mo.disconnect();
 				listMo.disconnect();
+			ctxMo.disconnect();
+			unsubRotate();
+			clearTimeout(ctxTimer);
+			clearTimeout(rotateTimer);
 				clearTimeout(tintTimer);
 				clearTints();
 				for (const k of ACCENT_TOKENS) body.style.removeProperty(k);
@@ -656,6 +760,10 @@ window.__ModuleLoader__.load({
 .rzd-thumb:disabled{cursor:default;opacity:.7}
 .rzd-thumb[data-picked]{border-color:var(--rzd-accent,var(--dsw-alias-brand-primary))}
 .rzd-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.rzd-libgrid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr))}
+.rzd-nothumb{display:flex;align-items:center;justify-content:center;height:100%;min-height:62px;font-size:22px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2)}
+.rzd-libname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%}
+.rzd-tab:disabled{opacity:.45;cursor:default}
 .rzd-tag{position:absolute;left:6px;bottom:6px;padding:1px 6px;border-radius:6px;font-size:11px;line-height:16px;color:#fff;background:rgba(0,0,0,.55)}
 .rzd-err{color:var(--dsw-alias-state-error-primary);font-size:13px}
 .rzd-ok{color:var(--dsw-alias-state-success-primary);font-size:13px}
@@ -705,7 +813,7 @@ window.__ModuleLoader__.load({
 		// (nekos.best) need no account; GIPHY is optional and needs a free key.
 		const HUBS = {
 			wallhaven: { endpoint: 'wallhaven', ph: 'Search wallpapers (space, anime, forest...)', credit: 'Wallpapers from Wallhaven (safe for work only).' },
-			commons: { endpoint: 'commons', ph: 'Search GIFs (cat, rain, space, fire...)', credit: 'GIFs from Wikimedia Commons. Free to use, each has its own license; no account needed.', needsQuery: true },
+			commons: { endpoint: 'commons', ph: 'Search GIFs (cat, rain, space, fire...)', credit: 'GIFs from Wikimedia Commons, an open archive: no account needed, each file has its own license, and results are NOT filtered for sensitive content (news or science footage can show up). Check a GIF before you keep it.', needsQuery: true },
 			anime: { endpoint: 'anime', ph: 'Search by show (avatar, naruto...) or leave empty for random reactions', credit: 'Anime GIFs from nekos.best. No account needed.' },
 			giphy: { endpoint: 'giphy', ph: 'Search GIFs (avatar, rain, city...)', credit: 'Powered by GIPHY.', needsKey: true },
 		};
@@ -824,6 +932,51 @@ window.__ModuleLoader__.load({
 					fileErr ? h('span', { className: 'rzd-err' }, fileErr) : null));
 		}
 
+		const MOOD_LABELS = { working: 'While working', waiting: 'Waiting for you', error: 'On an error', done: 'When finished' };
+		const WHY_LABEL = { mood: 'because of this chat\u2019s mood', chat: 'set for this chat', workspace: 'set for this workspace', playlist: 'from your playlist', default: 'your default', none: '' };
+
+		// The saved backgrounds: pick the default, give one to this chat or workspace, set a mood, build a playlist.
+		function LibraryCard(p) {
+			const { store } = p;
+			const st = useStore(store);
+			const { lib, thumbs, ctx, shown } = st;
+			const [sel, setSel] = useState(null);
+			const cur = lib.items.find((i) => i.id === sel) || null;
+			useEffect(() => { if (sel && !lib.items.some((i) => i.id === sel)) setSel(null); }, [lib.items.length]);
+			const apply = (next) => store.saveLib(next);
+			const chatKey = ctx.chat, spaceKey = ctx.space;
+			const uses = cur ? libUses(lib, cur.id) : [];
+			const Chip = (c) => h('button', { key: c.key || c.label, type: 'button', className: 'rzd-tab', 'data-on': c.on ? '' : undefined, 'aria-pressed': !!c.on, disabled: !!c.disabled, title: c.title, onClick: c.onClick }, c.label);
+			return h('section', { className: 'rzd-card', 'aria-label': 'Saved backgrounds' },
+				h('div', { className: 'rzd-col' },
+					h('h3', { className: 'rzd-title' }, 'Saved backgrounds'),
+					h('div', { className: 'rzd-sub' }, lib.items.length ? 'Pick one to use it everywhere, for one chat or workspace, or for a mood. Up to ' + LIB_MAX + '.' : 'Anything you add below is saved here, so you can switch between them.')),
+				shown.id ? h('div', { className: 'rzd-sub', role: 'status' }, 'Showing now: ', h('b', null, (lib.items.find((i) => i.id === shown.id) || {}).name || 'background'), ' ', WHY_LABEL[shown.why] || '') : null,
+				lib.items.length ? h('div', { className: 'rzd-grid rzd-libgrid', role: 'listbox', 'aria-label': 'Saved backgrounds' }, lib.items.map((it) => {
+					const tags = libUses(lib, it.id);
+					return h('button', { key: it.id, type: 'button', role: 'option', 'aria-selected': sel === it.id, className: 'rzd-thumb', 'data-picked': sel === it.id ? '' : undefined, title: it.name || 'Background', onClick: () => setSel(sel === it.id ? null : it.id) },
+						thumbs[it.id] ? h('img', { src: thumbs[it.id], alt: it.name || 'Saved background', loading: 'lazy' }) : h('span', { className: 'rzd-nothumb', 'aria-hidden': true }, /^(mp4|webm)$/.test(it.ext) ? '\u25B6' : '\u25A3'),
+						tags.length ? h('span', { className: 'rzd-tag' }, tags.slice(0, 2).join(' \u00B7 ')) : null);
+				})) : null,
+				cur ? h('div', { className: 'rzd-col', style: { gap: 8 } },
+					h('div', { className: 'rzd-row' }, h('b', { className: 'rzd-libname' }, cur.name || 'Background'), h('span', { className: 'rzd-sub' }, (cur.bytes / 1048576).toFixed(1) + ' MB \u00B7 ' + cur.ext.toUpperCase())),
+					h('div', { className: 'rzd-sub' }, 'Use it for\u2026'),
+					h('div', { className: 'rzd-tabs', role: 'group', 'aria-label': 'Use this background for' },
+						Chip({ label: 'Everywhere', on: lib.current === cur.id, onClick: () => apply({ ...lib, current: cur.id }) }),
+						Chip({ label: 'This chat', on: !!(chatKey && lib.assign.chats[chatKey] === cur.id), disabled: !chatKey, title: chatKey ? 'Only while this chat is open' : 'Open a chat first', onClick: () => apply(libAssign(lib, 'chat', chatKey, lib.assign.chats[chatKey] === cur.id ? null : cur.id)) }),
+						Chip({ label: 'This workspace', on: !!(spaceKey && lib.assign.spaces[spaceKey] === cur.id), disabled: !spaceKey, title: spaceKey ? 'Every chat in this workspace' : 'Open a chat in a workspace first', onClick: () => apply(libAssign(lib, 'space', spaceKey, lib.assign.spaces[spaceKey] === cur.id ? null : cur.id)) }),
+						Chip({ label: lib.playlist.ids.includes(cur.id) ? 'In playlist' : 'Add to playlist', on: lib.playlist.ids.includes(cur.id), onClick: () => apply(libTogglePlaylist(lib, cur.id)) })),
+					h('div', { className: 'rzd-sub' }, 'Or when a chat is\u2026'),
+					h('div', { className: 'rzd-tabs', role: 'group', 'aria-label': 'Use this background for a mood' }, LIB_MOODS.map((m) => Chip({ key: m, label: MOOD_LABELS[m], on: lib.assign.moods[m] === cur.id, onClick: () => apply(libAssign(lib, 'mood', m, lib.assign.moods[m] === cur.id ? null : cur.id)) }))),
+					h('div', { className: 'rzd-row', style: { justifyContent: 'flex-start' } }, h('button', { type: 'button', className: 'rzd-btn', onClick: () => store.removeEntry(cur.id) }, 'Delete this one'))) : null,
+				lib.items.length ? h('div', { className: 'rzd-col', style: { gap: 8, borderTop: '0.5px solid var(--dsw-alias-border-l2)', paddingTop: 10 } },
+					h('div', { className: 'rzd-row' },
+						h('div', { className: 'rzd-col' }, h('b', null, 'Playlist'), h('div', { className: 'rzd-sub' }, lib.playlist.ids.length < 2 ? 'Add at least two backgrounds to rotate them.' : lib.playlist.ids.length + ' backgrounds, switching every ' + lib.playlist.minutes + ' min.')),
+						h(Switch, { checked: lib.playlist.on && lib.playlist.ids.length > 1, label: 'Rotate backgrounds', onChange: (v) => apply(libSetPlaylist(lib, { on: v })) })),
+					lib.playlist.ids.length > 1 ? h(Slider, { label: 'Switch every', min: 1, max: 60, step: 1, value: Math.min(60, lib.playlist.minutes), unit: ' min', onChange: (v) => apply(libSetPlaylist(lib, { minutes: v })) }) : null,
+					lib.playlist.ids.length > 1 ? h('div', { className: 'rzd-row' }, h('span', null, 'Shuffle'), h(Switch, { checked: lib.playlist.shuffle, label: 'Shuffle the playlist', onChange: (v) => apply(libSetPlaylist(lib, { shuffle: v })) })) : null,
+					h('div', { className: 'rzd-sub' }, 'A background set for the open chat, its workspace or its mood always wins over the playlist.')) : null);
+		}
 		function BackgroundCard(p) {
 			const { store } = p;
 			const st = useStore(store);
@@ -833,13 +986,13 @@ window.__ModuleLoader__.load({
 			const video = st.bg.has && /^(mp4|webm)$/.test(st.bg.ext);
 			return h('section', { className: 'rzd-card', 'aria-label': 'Chat background' },
 				h('div', { className: 'rzd-row' },
-					h('div', { className: 'rzd-col' }, h('h3', { className: 'rzd-title' }, 'Chat background'), h('div', { className: 'rzd-sub' }, 'Sits behind every chat. Pick one below.')),
+					h('div', { className: 'rzd-col' }, h('h3', { className: 'rzd-title' }, 'Chat background'), h('div', { className: 'rzd-sub' }, 'Find something below. Whatever you pick is added to Saved backgrounds.')),
 					h(Switch, { checked: s.bgEnabled, label: 'Show background', onChange: (v) => store.setSettings({ bgEnabled: v }) })),
 				h('div', { className: 'rzd-preview' },
 					st.bg.has ? (video ? h('video', { src: st.bg.url, muted: true, loop: true, autoPlay: true, playsInline: true }) : h('img', { src: st.bg.url, alt: 'Current background' })) : 'No background yet'),
 				h('div', { className: 'rzd-row' },
 					h('span', { className: 'rzd-sub' }, st.busy || (st.bg.has ? 'Current background' : '')),
-					st.bg.has ? h('button', { type: 'button', className: 'rzd-btn', onClick: () => store.clearBackground() }, 'Remove background') : null),
+					null),
 				st.error ? h('div', { className: 'rzd-err', role: 'alert', onClick: () => store.clearError() }, st.error) : null,
 				h('div', { className: 'rzd-tabs', role: 'tablist' }, tabs.map(([id, label]) => h('button', { key: id, type: 'button', role: 'tab', 'aria-selected': tab === id, className: 'rzd-tab', onClick: () => setTab(id) }, label))),
 				tab === 'link' ? h(LinkOrFile, { store }) : h(Hub, { key: tab, store, kind: tab }),
@@ -1699,6 +1852,7 @@ window.__ModuleLoader__.load({
 					!st.ready ? h('div', { className: 'rzd-sub' }, 'Loading…') : null,
 					h(ThemeCard, { store }),
 					h(BackgroundCard, { store }),
+					h(LibraryCard, { store }),
 					h(EffectCard, { store }),
 					h(StateEffectsCard, { store }),
 					h(CelebrateCard, { store }),
@@ -1713,7 +1867,7 @@ window.__ModuleLoader__.load({
 		}
 
 		return {
-			__test: { withDefaults, G2048Panel, MinesPanel, PongPanel, allEffectsCss, StateEffectsCard, Celebration, PerchDock, Buddy, centerPiece, PetPanel, GameWindow, effectCss, borderCss, tintFor, hexRgb, clamp, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel, themeFrom, exportTheme, parseTheme, PRESETS },
+			__test: { LibraryCard, withDefaults, G2048Panel, MinesPanel, PongPanel, allEffectsCss, StateEffectsCard, Celebration, PerchDock, Buddy, centerPiece, PetPanel, GameWindow, effectCss, borderCss, tintFor, hexRgb, clamp, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel, themeFrom, exportTheme, parseTheme, PRESETS },
 			inject: ['slots', 'connection'],
 			apply(ctx) {
 				const store = createStore(ctx.get('connection').rpc);
