@@ -196,7 +196,7 @@ window.__ModuleLoader__.load({
 			+ '[data-subagent-panel] [role="group"][data-rzd-branch]{margin-left:8px;padding-left:2px;border-left:2px solid color-mix(in srgb,var(--rzd-branch) 65%,transparent);border-radius:0 0 0 6px}';
 		// ----------------------------------------------------------------- themes
 		// A theme is only settings (no background file, no GIPHY key, no pet).
-		const THEME_KEYS = ['intensity', 'stateEffects', 'stateColors', 'celebrate', 'accent', 'accentEnabled', 'familyTint', 'lineageBadges', 'panel', 'dim', 'blur', 'effect', 'speed', 'effectColor', 'borderStyle', 'borderWidth', 'borderColor', 'borderOnlyWorking', 'tintEnabled', 'tintRules'];
+		const THEME_KEYS = ['fontFamily', 'fontSize', 'lineSpacing', 'chatWidth', 'userBubble', 'intensity', 'stateEffects', 'stateColors', 'celebrate', 'accent', 'accentEnabled', 'familyTint', 'lineageBadges', 'panel', 'dim', 'blur', 'effect', 'speed', 'effectColor', 'borderStyle', 'borderWidth', 'borderColor', 'borderOnlyWorking', 'tintEnabled', 'tintRules'];
 		const PRESETS = [
 			{ id: 'avatar', label: 'Avatar', hint: 'Warm sky, gold frame', theme: { panel: 50, dim: 8, blur: 0, effect: 'ember', speed: 3, borderStyle: 'gold', borderWidth: 2, borderOnlyWorking: false } },
 			{ id: 'cyberpunk', label: 'Cyberpunk', hint: 'Neon pink, scanner', theme: { panel: 45, dim: 25, blur: 2, effect: 'scanner', speed: 3, effectColor: '#ff2bd6', borderStyle: 'neon', borderWidth: 2, borderColor: '#00e5ff', borderOnlyWorking: false } },
@@ -296,8 +296,8 @@ window.__ModuleLoader__.load({
 			async function load() {
 				for (let i = 0; i < 6; i++) {
 					try {
-						const [settings, data, pet, libr, th] = await Promise.all([call('getSettings'), call('data'), call('getPet'), call('libList'), call('libThumbs').catch(() => ({ thumbs: {} }))]);
-						set({ ready: true, settings: withDefaults(settings), bg: toBg(data), pet: petTick(pet, Date.now()), lib: libClean(libr.lib), thumbs: th.thumbs || {}, ctx: { ...state.ctx, seed: (Date.now() ^ 0x5bd1e995) >>> 0 }, error: '' });
+						const [settings, data, pet, libr, th] = await Promise.all([call('getSettings'), call('data'), call('getPet'), call('libList').catch(() => ({ lib: libEmpty() })), call('libThumbs').catch(() => ({ thumbs: {} }))]);
+						set({ ready: true, settings: withDefaults(settings), bg: toBg(data), pet: petTick(pet, Date.now()), lib: libClean(libr && libr.lib), thumbs: (th && th.thumbs) || {}, ctx: { ...state.ctx, seed: (Date.now() ^ 0x5bd1e995) >>> 0 }, error: '' });
 						refreshShown();
 						return;
 					} catch (e) {
@@ -509,7 +509,9 @@ window.__ModuleLoader__.load({
 			frameStyle.setAttribute('data-rayskinz-design', 'border');
 			const tintStyle = document.createElement('style');
 			tintStyle.setAttribute('data-rayskinz-design', 'tint');
-			document.head.append(bgStyle, fxStyle, frameStyle, tintStyle);
+			const lookStyle = document.createElement('style');
+			lookStyle.setAttribute('data-rayskinz-design', 'look');
+			document.head.append(bgStyle, fxStyle, frameStyle, tintStyle, lookStyle);
 			const FRAME = 'rzd-frame';
 			let frame = null;
 			let tinted = new Set();
@@ -580,7 +582,16 @@ window.__ModuleLoader__.load({
 			// Accent colour: recolours the app's own accent tokens (selected tab underline, focus rings, links,
 			// primary buttons) and this plugin's own controls. Text on it is picked for contrast.
 			const ACCENT_TOKENS = ['--dsw-alias-state-business-primary', '--dsw-alias-brand-primary', '--dsw-alias-brand-primary-invert', '--rzd-accent', '--rzd-accent-text'];
-			function applyAccent(s) {
+			// Chat look: fonts, size, spacing, width, bubble. Size is measured from the app's own value with our override
+			// removed first, so "+2" always means two px above whatever the user chose in the app's settings.
+			function applyLook(s) {
+				lookStyle.textContent = '';
+				const cs = getComputedStyle(body);
+				const size = parseFloat(cs.getPropertyValue('--dsh-content-font-size')) || 14;
+				const accent = s.accentEnabled && /^#[0-9a-f]{6}$/i.test(s.accent || '') ? s.accent : '';
+				const text = accent ? (famContrast(accent, '#ffffff') >= famContrast(accent, '#111111') ? '#ffffff' : '#111111') : '';
+				lookStyle.textContent = lookCss({ ...s, accentText: text }, { size });
+			}			function applyAccent(s) {
 				const on = !!(s.accentEnabled && /^#[0-9a-f]{6}$/i.test(s.accent || ''));
 				for (const k of ACCENT_TOKENS) body.style.removeProperty(k);
 				if (!on) return;
@@ -700,6 +711,7 @@ window.__ModuleLoader__.load({
 				renderBorder(s);
 				applyTints(s);
 				applyAccent(s);
+				applyLook(s);
 			}
 
 			render();
@@ -718,6 +730,7 @@ window.__ModuleLoader__.load({
 			unsubRotate();
 			clearTimeout(ctxTimer);
 			clearTimeout(rotateTimer);
+			lookStyle.remove();
 				clearTimeout(tintTimer);
 				clearTints();
 				for (const k of ACCENT_TOKENS) body.style.removeProperty(k);
@@ -764,6 +777,10 @@ window.__ModuleLoader__.load({
 .rzd-nothumb{display:flex;align-items:center;justify-content:center;height:100%;min-height:62px;font-size:22px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2)}
 .rzd-libname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%}
 .rzd-tab:disabled{opacity:.45;cursor:default}
+.rzd-opt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;min-height:44px;padding:8px 12px;border-radius:12px;border:0.5px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;cursor:pointer}
+.rzd-opt:hover{background:var(--dsw-alias-bg-layer-2)}
+.rzd-opt[data-on]{border-color:var(--rzd-accent,var(--dsw-alias-brand-primary));box-shadow:inset 0 0 0 1px var(--rzd-accent,var(--dsw-alias-brand-primary))}
+.rzd-opt-t{font-weight:600;font-size:13px}.rzd-opt-h{font-size:12px;color:var(--dsw-alias-label-secondary)}
 .rzd-tag{position:absolute;left:6px;bottom:6px;padding:1px 6px;border-radius:6px;font-size:11px;line-height:16px;color:#fff;background:rgba(0,0,0,.55)}
 .rzd-err{color:var(--dsw-alias-state-error-primary);font-size:13px}
 .rzd-ok{color:var(--dsw-alias-state-success-primary);font-size:13px}
@@ -1764,6 +1781,24 @@ window.__ModuleLoader__.load({
 					h('label', { className: 'rzd-slider' }, h('span', null, 'Custom'), h('input', { type: 'color', className: 'rzd-color', value: color, onChange: (e) => store.setSettings({ accent: e.target.value }) }), h('span', null)),
 					ratio < 3 ? h('div', { className: 'rzd-err', role: 'status' }, 'That color is hard to see against the page (contrast ' + ratio.toFixed(1) + ':1). Pick something darker or brighter.') : h('div', { className: 'rzd-ok' }, 'Contrast ' + ratio.toFixed(1) + ':1, easy to see.')) : null);
 		}
+		const FONT_CHOICES = Object.keys(LOOK_FONTS);
+		const BUBBLE_CHOICES = Object.keys(LOOK_BUBBLES);
+		function LookCard(p) {
+			const { store } = p;
+			const st = useStore(store);
+			const s = st.settings;
+			const Pick = (items, value, label, on, sample) => h('div', { className: 'rzd-tabs', role: 'radiogroup', 'aria-label': label }, items.map(([id, text]) => h('button', { key: id, type: 'button', role: 'radio', 'aria-checked': value === id, className: 'rzd-tab', 'data-on': value === id ? '' : undefined, style: sample ? sample(id) : undefined, onClick: () => on(id) }, text)));
+			return h('section', { className: 'rzd-card', 'aria-label': 'Chat look' },
+				h('div', { className: 'rzd-col' }, h('h3', { className: 'rzd-title' }, 'Chat look'), h('div', { className: 'rzd-sub' }, 'Text, spacing and how your messages look. "App default" leaves the app exactly as it is.')),
+				h('div', { className: 'rzd-sub' }, 'Font'),
+				Pick(FONT_CHOICES.map((id) => [id, LOOK_FONTS[id].label]), s.fontFamily, 'Font', (id) => store.setSettings({ fontFamily: id }), (id) => (LOOK_FONTS[id].stack ? { fontFamily: LOOK_FONTS[id].stack } : undefined)),
+				h(Slider, { label: 'Text size', min: -3, max: 6, step: 1, value: s.fontSize, unit: ' px', onChange: (v) => store.setSettings({ fontSize: v }) }),
+				h(Slider, { label: 'Line spacing', min: -4, max: 10, step: 1, value: s.lineSpacing, unit: ' px', onChange: (v) => store.setSettings({ lineSpacing: v }) }),
+				h(Slider, { label: 'Chat width', min: 0, max: 1600, step: 20, value: s.chatWidth, unit: s.chatWidth === 0 ? ' (app)' : ' px', onChange: (v) => store.setSettings({ chatWidth: v === 0 ? 0 : Math.max(520, v) }) }),
+				h('div', { className: 'rzd-sub' }, 'Your message bubble'),
+				h('div', { className: 'rzd-chips', role: 'radiogroup', 'aria-label': 'Message bubble' }, BUBBLE_CHOICES.map((id) => h('button', { key: id, type: 'button', role: 'radio', 'aria-checked': s.userBubble === id, className: 'rzd-opt', 'data-on': s.userBubble === id ? '' : undefined, onClick: () => store.setSettings({ userBubble: id }) }, h('span', { className: 'rzd-opt-t' }, LOOK_BUBBLES[id].label), h('span', { className: 'rzd-opt-h' }, LOOK_BUBBLES[id].hint)))),
+				(s.fontSize !== 0 || s.lineSpacing !== 0 || s.chatWidth !== 0 || s.fontFamily !== 'default' || s.userBubble !== 'default') ? h('div', { className: 'rzd-row', style: { justifyContent: 'flex-start' } }, h('button', { type: 'button', className: 'rzd-btn', onClick: () => store.setSettings({ fontFamily: 'default', fontSize: 0, lineSpacing: 0, chatWidth: 0, userBubble: 'default' }) }, 'Back to app default')) : null);
+		}
 		function BorderCard(p) {
 			const { store } = p;
 			const st = useStore(store);
@@ -1858,6 +1893,7 @@ window.__ModuleLoader__.load({
 					h(CelebrateCard, { store }),
 					h(BorderCard, { store }),
 					h(AccentCard, { store }),
+					h(LookCard, { store }),
 					h(TintCard, { store }),
 					h(PetCard, { store }),
 					h('div', { className: 'rzd-row' },
@@ -1867,7 +1903,7 @@ window.__ModuleLoader__.load({
 		}
 
 		return {
-			__test: { LibraryCard, withDefaults, G2048Panel, MinesPanel, PongPanel, allEffectsCss, StateEffectsCard, Celebration, PerchDock, Buddy, centerPiece, PetPanel, GameWindow, effectCss, borderCss, tintFor, hexRgb, clamp, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel, themeFrom, exportTheme, parseTheme, PRESETS },
+			__test: { lookCss, famContrast, LookCard, LibraryCard, withDefaults, G2048Panel, MinesPanel, PongPanel, allEffectsCss, StateEffectsCard, Celebration, PerchDock, Buddy, centerPiece, PetPanel, GameWindow, effectCss, borderCss, tintFor, hexRgb, clamp, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel, themeFrom, exportTheme, parseTheme, PRESETS },
 			inject: ['slots', 'connection'],
 			apply(ctx) {
 				const store = createStore(ctx.get('connection').rpc);
