@@ -356,7 +356,7 @@ test.after(() => fs.rmSync(dir, { recursive: true, force: true }))
 
 test('settings: every new look key is validated and clamped by the host', () => {
   const s = host.sanitizeSettings({ intensity: 5000, stateEffects: { warning: 'matrix', error: 'ember', done: 'rainbow', bogus: 'pulse' }, stateColors: { warning: 'red', error: '#ABCDEF', done: 'url(x)' }, celebrate: 'fire', celebrateOnGame: 'yes', accent: 'javascript:1', accentEnabled: 1, familyTint: false, lineageBadges: false, effect: 'aurora' })
-  assert.equal(s.intensity, 100); assert.deepEqual(s.stateEffects, { warning: 'pulse', error: 'ember', done: 'off' }); assert.deepEqual(s.stateColors, { warning: '#fbbf24', error: '#abcdef', done: '#4ade80' })
+  assert.equal(s.intensity, 100); assert.deepEqual(s.stateEffects, { warning: 'pulse', error: 'ember', done: 'off' }); assert.deepEqual(s.stateColors, { warning: '#f59e0b', error: '#abcdef', done: '#22c55e' }, 'bad colours keep the fixed defaults; a good one is kept lower-cased')
   assert.equal(s.celebrate, 'off'); assert.equal(s.celebrateOnGame, true); assert.equal(s.accent, ''); assert.equal(s.accentEnabled, false); assert.equal(s.familyTint, false); assert.equal(s.lineageBadges, false); assert.equal(s.effect, 'aurora')
   assert.equal(host.sanitizeSettings({ accent: '#A78BFA' }).accent, '#a78bfa'); assert.equal(host.sanitizeSettings({ effect: 'matrix' }).effect, 'matrix'); assert.equal(host.sanitizeSettings({ celebrate: 'hearts' }).celebrate, 'hearts')
   assert.equal(host.sanitizeSettings({ fontSize: 99, lineSpacing: -99, chatWidth: 99999 }).fontSize, 6); assert.equal(host.sanitizeSettings({ lineSpacing: -99 }).lineSpacing, -4); assert.equal(host.sanitizeSettings({ chatWidth: 99999 }).chatWidth, 1600)
@@ -368,7 +368,7 @@ test('upgrade safety: old saved settings without newer keys never produce undefi
   assert.equal(old.panel, 40); assert.equal(old.effect, 'pulse'); assert.deepEqual(Object.keys(old.stateEffects).sort(), ['done', 'error', 'warning']); assert.deepEqual(Object.keys(old.stateColors).sort(), ['done', 'error', 'warning'])
   assert.equal(old.intensity, 70); assert.equal(old.celebrate, 'off'); assert.ok(Array.isArray(old.tintRules)); assert.equal(old.accentEnabled, false)
   const partial = withDefaults({ stateEffects: { warning: 'ember' }, stateColors: null, tintRules: 'oops' })
-  assert.equal(partial.stateEffects.warning, 'ember'); assert.equal(partial.stateEffects.error, 'off'); assert.equal(partial.stateColors.done, '#4ade80'); assert.ok(Array.isArray(partial.tintRules))
+  assert.equal(partial.stateEffects.warning, 'ember'); assert.equal(partial.stateEffects.error, 'off'); assert.equal(partial.stateColors.done, '#22c55e'); assert.ok(Array.isArray(partial.tintRules))
   assert.doesNotThrow(() => allEffectsCss(withDefaults(null))); assert.doesNotThrow(() => withDefaults(undefined))
   const patched = withDefaults({ ...old, stateEffects: { error: 'pulse' } }); assert.equal(patched.stateEffects.warning, 'pulse', 'a partial patch keeps the other states')
 })
