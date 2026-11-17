@@ -314,4 +314,39 @@ test('preview pieces are centred by their real bounding box', async () => {
     assert.ok(left >= 0 && top >= 0, type + ' inside the box')
   }
 })
+test('gif sources: commons and anime parse real-shaped answers (network faked), reject junk', async () => {
+  const https = await import('node:https')
+  const { Readable } = await import('node:stream')
+  const gifBytes = Buffer.from('GIF89a' + 'x'.repeat(40))
+  const answers = (url) => {
+    if (url.hostname === 'commons.wikimedia.org') return { type: 'application/json', body: JSON.stringify({ continue: { gsroffset: 24 }, query: { pages: [
+      { pageid: 2, index: 2, title: 'File:Two.gif', imageinfo: [{ mime: 'image/gif', size: 1000, url: 'https://upload.wikimedia.org/a/Two.gif', thumburl: 'https://thumb.wikimedia.org/a/Two.gif/240px-Two.gif' }] },
+      { pageid: 1, index: 1, title: 'File:One.gif', imageinfo: [{ mime: 'image/gif', size: 1000, url: 'https://upload.wikimedia.org/a/One.gif', thumburl: 'https://thumb.wikimedia.org/a/One.gif/240px-One.gif' }] },
+      { pageid: 3, index: 3, title: 'File:Huge.gif', imageinfo: [{ mime: 'image/gif', size: 90 * 1024 * 1024, url: 'https://upload.wikimedia.org/a/Huge.gif', thumburl: 'https://thumb.wikimedia.org/a/Huge.gif' }] },
+      { pageid: 4, index: 4, title: 'File:Pic.png', imageinfo: [{ mime: 'image/png', size: 10, url: 'https://upload.wikimedia.org/a/Pic.png', thumburl: 'https://thumb.wikimedia.org/a/Pic.png' }] },
+      { pageid: 5, index: 5, title: 'File:Evil.gif', imageinfo: [{ mime: 'image/gif', size: 10, url: 'https://upload.wikimedia.org/a/Evil.gif', thumburl: 'https://127.0.0.1/steal' }] },
+    ] } }) }
+    if (url.hostname === 'nekos.best' && url.pathname === '/api/v2/search') return { type: 'application/json', body: JSON.stringify({ results: [{ anime_name: 'Avatar: The Last Airbender', url: 'https://nekos.best/api/v2/facepalm/a.gif' }, { anime_name: 'Static', url: 'https://nekos.best/api/v2/neko/b.png' }, { url: 'javascript:alert(1)' }, null] }) }
+    if (url.hostname === 'nekos.best') return { type: 'image/gif', body: gifBytes }
+    return { type: 'image/gif', body: gifBytes }
+  }
+  const orig = https.default.request
+  https.default.request = (url, opts, cb) => {
+    const a = answers(new URL(url)); const res = Readable.from([Buffer.from(a.body)]); res.statusCode = 200; res.headers = { 'content-type': a.type }
+    const req = new (require_events())(); req.end = () => setImmediate(() => cb(res)); req.destroy = () => {}; return req
+  }
+  function require_events() { return globalThis.__ee.EventEmitter }
+  try {
+    const c = await call('commons', { q: 'cat' })
+    assert.equal(c.ok, true, JSON.stringify(c))
+    assert.deepEqual(c.value.items.map((i) => i.label), ['One', 'Two'], 'sorted by rank; huge, non-gif and off-host thumbnail dropped')
+    assert.equal(c.value.more, true); assert.equal(c.value.nextOffset, 24)
+    assert.ok(c.value.items[0].thumb.startsWith('data:image/gif;base64,'))
+    const a = await call('anime', { q: 'avatar' })
+    assert.equal(a.ok, true, JSON.stringify(a)); assert.deepEqual(a.value.items.map((i) => i.label), ['Avatar: The Last Airbender'])
+    assert.equal((await call('commons', { q: '   ' })).ok, false)
+    const evil = await call('apply', { url: 'https://nekos.best/api/v2/x/..%2F..%2Fsecret.gif' })
+    assert.ok(typeof evil.ok === 'boolean')
+  } finally { https.default.request = orig }
+})
 test.after(() => fs.rmSync(dir, { recursive: true, force: true }))

@@ -13,7 +13,7 @@ Make DeepSeek Harness look like yours. Everything lives on one page: **Settings 
 
 ## Good to know
 
-- Wallpapers need no account. GIFs need a free GIPHY key (100 searches an hour); the page walks you through it.
+- Wallpapers, GIFs (Wikimedia Commons) and anime GIFs (nekos.best) need no account. GIPHY is optional and needs a free key.
 - Your chosen background is saved on your computer and loads the same way every launch.
 - Files over 40 MB are refused. Wallhaven results are safe for work only.
 - Lower "Panel see-through" if text gets hard to read over a busy background.

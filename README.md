@@ -4,7 +4,7 @@ A design plugin for DeepSeek Harness (DSH). Backgrounds, a wallpaper and GIF hub
 
 ## Features
 
-- Chat background behind every chat: wallpaper search (Wallhaven), GIF search (GIPHY), pasted link, or your own file. Animated GIFs and mp4/webm work.
+- Chat background behind every chat: wallpaper search (Wallhaven), GIF search (Wikimedia Commons and anime GIFs from nekos.best, no account needed; GIPHY optional with a free key), a pasted link, or your own file. Animated GIFs and mp4/webm work.
 - Sliders for panel see-through, darken and blur.
 - Working-chat effects in the sidebar: rainbow wave, pulse, scanner, ember.
 - Window border: neon, rainbow, gold, stripes or fire, optionally only while a chat is working.
@@ -25,9 +25,9 @@ git clone https://github.com/rayskinz/dsh-design.git
 
 Then add the folder as a bundle (`@rayskinz/dsh-design`) and enable it. Open **Settings → Design Options**.
 
-## GIFs need a free GIPHY key
+## GIFs work out of the box
 
-Wallpapers work with no setup. For GIF search, create a free key at https://developers.giphy.com/dashboard/ (100 searches an hour), and paste it into the GIFs tab. The key is stored on your computer only. A background GIF downloaded from GIPHY is shown with "Powered by GIPHY" credit in the hub.
+Wallpapers, the **GIFs** tab (Wikimedia Commons) and the **Anime GIFs** tab (nekos.best) need no account or key. The optional **GIPHY** tab needs a free key from https://developers.giphy.com/dashboard/ (100 searches an hour); paste it into that tab. The key is stored on your computer only and never sent back to the Settings page. GIFs from Commons carry their own licenses; each file's page on commons.wikimedia.org has the details. The plugin sends a descriptive User-Agent as Wikimedia and nekos.best require.
 
 ## Tests
 
@@ -50,7 +50,7 @@ The browser half is built from `src/client.src.js` and `src/games.js`: edit thos
 
 ## Privacy
 
-The plugin talks only to wallhaven.cc and api.giphy.com when you search, and to the link you paste when you use one. Nothing is sent anywhere else.
+The plugin talks only to wallhaven.cc, commons.wikimedia.org, nekos.best and api.giphy.com when you search, and to the link you paste when you use one. Nothing is sent anywhere else.
 
 ## Notes
 
