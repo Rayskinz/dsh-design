@@ -13,7 +13,7 @@ export function buildClient() {
   const src = fs.readFileSync(path.join(root, 'src', 'client.src.js'), 'utf8').replace(/\r\n/g, '\n')
   // Every rule module is wrapped in its own function scope and its exports are re-declared once, so a
   // clash between two modules is a loud build error instead of a silent override.
-  const MODULES = ['games.js', 'games2.js', 'fx.js']
+  const MODULES = ['games.js', 'games2.js', 'fx.js', 'family.js']
   const seen = new Map()
   const parts = []
   MODULES.forEach((file, i) => {

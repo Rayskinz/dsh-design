@@ -190,11 +190,13 @@ window.__ModuleLoader__.load({
 			}
 			return null;
 		}
-		const TINT_CSS = '[data-rzd-tint]{--rzd-tint-fill:color-mix(in srgb,var(--rzd-tint) 14%,transparent)}[data-rzd-tint]::before{content:"";position:absolute;left:0;top:5px;bottom:5px;width:3px;border-radius:2px;background:var(--rzd-tint);pointer-events:none}[data-rzd-tint]:not(:hover){background-image:linear-gradient(90deg,var(--rzd-tint-fill),transparent 75%)}';
-
+		// Rows carry --rzd-tint; sub-chat labels carry a text badge; nested groups get a coloured branch line.
+		const TINT_CSS = '[data-rzd-tint]{--rzd-tint-fill:color-mix(in srgb,var(--rzd-tint) 14%,transparent)}[data-rzd-tint]::before{content:"";position:absolute;left:0;top:5px;bottom:5px;width:3px;border-radius:2px;background:var(--rzd-tint);pointer-events:none}[data-rzd-tint]:not(:hover){background-image:linear-gradient(90deg,var(--rzd-tint-fill),transparent 75%)}'
+			+ '[data-rzd-badge]::before{content:attr(data-rzd-badge);display:inline-block;margin-right:6px;padding:0 6px;border-radius:999px;font-size:10px;line-height:15px;font-weight:600;vertical-align:1px;color:var(--dsw-alias-label-primary);background:color-mix(in srgb,var(--rzd-badge) 24%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--rzd-badge) 70%,transparent)}'
+			+ '[data-subagent-panel] [role="group"][data-rzd-branch]{margin-left:8px;padding-left:2px;border-left:2px solid color-mix(in srgb,var(--rzd-branch) 65%,transparent);border-radius:0 0 0 6px}';
 		// ----------------------------------------------------------------- themes
 		// A theme is only settings (no background file, no GIPHY key, no pet).
-		const THEME_KEYS = ['panel', 'dim', 'blur', 'effect', 'speed', 'effectColor', 'borderStyle', 'borderWidth', 'borderColor', 'borderOnlyWorking', 'tintEnabled', 'tintRules'];
+		const THEME_KEYS = ['intensity', 'stateEffects', 'stateColors', 'celebrate', 'accent', 'accentEnabled', 'familyTint', 'lineageBadges', 'panel', 'dim', 'blur', 'effect', 'speed', 'effectColor', 'borderStyle', 'borderWidth', 'borderColor', 'borderOnlyWorking', 'tintEnabled', 'tintRules'];
 		const PRESETS = [
 			{ id: 'avatar', label: 'Avatar', hint: 'Warm sky, gold frame', theme: { panel: 50, dim: 8, blur: 0, effect: 'ember', speed: 3, borderStyle: 'gold', borderWidth: 2, borderOnlyWorking: false } },
 			{ id: 'cyberpunk', label: 'Cyberpunk', hint: 'Neon pink, scanner', theme: { panel: 45, dim: 25, blur: 2, effect: 'scanner', speed: 3, effectColor: '#ff2bd6', borderStyle: 'neon', borderWidth: 2, borderColor: '#00e5ff', borderOnlyWorking: false } },
@@ -265,9 +267,19 @@ window.__ModuleLoader__.load({
 		const MOOD_BUBBLE = { working: '\u26A1', hungry: '\uD83C\uDF56', sad: '\uD83D\uDC94', happy: '\u2728', idle: '' };
 		const MOOD_TEXT = { working: 'Cheering you on', hungry: 'Hungry!', sad: 'Lonely, play with me', happy: 'Happy', idle: 'Chilling' };
 
+		// Settings from disk or from a shared theme may lack newer keys: always lay them over the defaults,
+		// including the two nested maps, so no component ever meets an undefined.
+		function withDefaults(s) {
+			const o = Object.assign({}, DEFAULTS, s || {});
+			o.stateEffects = Object.assign({}, DEFAULTS.stateEffects, (s && s.stateEffects) || {});
+			o.stateColors = Object.assign({}, DEFAULTS.stateColors, (s && s.stateColors) || {});
+			if (!Array.isArray(o.tintRules)) o.tintRules = DEFAULTS.tintRules.slice();
+			return o;
+		}
+
 		// ------------------------------------------------------------------ store
 		function createStore(rpc) {
-			let state = { ready: false, busy: '', error: '', settings: DEFAULTS, bg: { has: false }, pet: null, working: false, toast: '', buddy: null, say: '', perch: false, burst: null };
+			let state = { ready: false, busy: '', error: '', settings: withDefaults(DEFAULTS), bg: { has: false }, pet: null, working: false, toast: '', buddy: null, say: '', perch: false, burst: null };
 			const subs = new Set();
 			let saveTimer = 0;
 			const emit = () => subs.forEach((f) => f());
@@ -285,7 +297,7 @@ window.__ModuleLoader__.load({
 				for (let i = 0; i < 6; i++) {
 					try {
 						const [settings, data, pet] = await Promise.all([call('getSettings'), call('data'), call('getPet')]);
-						set({ ready: true, settings, bg: toBg(data), pet: petTick(pet, Date.now()), error: '' });
+						set({ ready: true, settings: withDefaults(settings), bg: toBg(data), pet: petTick(pet, Date.now()), error: '' });
 						return;
 					} catch (e) {
 						if (i === 5) set({ ready: true, error: 'Could not reach the Design plugin host: ' + (e && e.message) });
@@ -294,7 +306,7 @@ window.__ModuleLoader__.load({
 				}
 			}
 			function setSettings(patch) {
-				const settings = { ...state.settings, ...patch };
+				const settings = withDefaults({ ...state.settings, ...patch });
 				set({ settings });
 				clearTimeout(saveTimer);
 				saveTimer = setTimeout(() => {
@@ -448,14 +460,18 @@ window.__ModuleLoader__.load({
 					frame = null;
 				}
 			}
+			let badged = new Set();
+			let grouped = new Set();
 			function clearTints() {
-				for (const el of tinted) {
-					el.removeAttribute('data-rzd-tint');
-					el.style.removeProperty('--rzd-tint');
-				}
-				tinted = new Set();
+				for (const el of tinted) { el.removeAttribute('data-rzd-tint'); el.style.removeProperty('--rzd-tint'); }
+				for (const el of badged) { el.removeAttribute('data-rzd-badge'); el.style.removeProperty('--rzd-badge'); }
+				for (const el of grouped) { el.removeAttribute('data-rzd-branch'); el.style.removeProperty('--rzd-branch'); }
+				tinted = new Set(); badged = new Set(); grouped = new Set();
 			}
-			// Sidebar rows are the only chat/sub-chat rows with a text title in the page.
+			const rowText = (row, sel) => { const el = row.querySelector(sel); return (el ? el.textContent : String(row.innerText || '').split('\n')[0]) || ''; };
+			const cap = (w) => (w ? w[0].toUpperCase() + w.slice(1) : '');
+			// Two places show chats as rows: the sidebar list (each chat on its own, matched by title) and the
+			// sub-chat tree in the header menu (nested by aria-level: children inherit a darker shade of the parent's colour).
 			function applyTints(s) {
 				if (!s.tintEnabled || !s.tintRules.length) {
 					clearTints();
@@ -463,24 +479,52 @@ window.__ModuleLoader__.load({
 					return;
 				}
 				tintStyle.textContent = TINT_CSS;
-				const seen = new Set();
+				const nextT = new Set(), nextB = new Set(), nextG = new Set();
+				const paint = (row, color) => {
+					if (getComputedStyle(row).position === 'static') row.style.position = 'relative';
+					row.setAttribute('data-rzd-tint', ''); row.style.setProperty('--rzd-tint', color); nextT.add(row);
+				};
 				document.querySelectorAll('[role="treeitem"][data-row-key^="session:"]').forEach((row) => {
-					const titleEl = row.querySelector('[class*="title"]');
-					const text = titleEl ? titleEl.textContent : String(row.innerText || '').split('\n')[0];
-					const color = tintFor(text, s.tintRules);
-					if (color) {
-						if (getComputedStyle(row).position === 'static') row.style.position = 'relative';
-						row.setAttribute('data-rzd-tint', '');
-						row.style.setProperty('--rzd-tint', color);
-						seen.add(row);
-					} else if (tinted.has(row)) {
-						row.removeAttribute('data-rzd-tint');
-						row.style.removeProperty('--rzd-tint');
-					}
+					const m = famMatch(rowText(row, '[class*="title"]'), s.tintRules);
+					if (m) paint(row, m.color.toLowerCase());
 				});
-				tinted = seen;
+				const panelRows = [...document.querySelectorAll('[data-subagent-panel] [role="treeitem"]')];
+				if (panelRows.length) {
+					const info = famResolve(panelRows.map((r) => ({ level: Number(r.getAttribute('aria-level')) || 1, text: rowText(r, '[class*="label"]') })), s.tintRules);
+					panelRows.forEach((row, i) => {
+						const r = info[i];
+						if (!r.color || (r.inherited && !s.familyTint)) return;
+						paint(row, r.color);
+						const label = row.querySelector('[class*="label"]');
+						if (label && s.lineageBadges) {
+							const dot = row.querySelector('svg[data-state]');
+							const state = dot ? famStateWord(dot.getAttribute('data-state')) : '';
+							label.setAttribute('data-rzd-badge', cap(r.word) + (state && state !== 'idle' ? ' \u00B7 ' + state : ''));
+							label.style.setProperty('--rzd-badge', r.color); nextB.add(label);
+						}
+						const group = row.parentElement && row.parentElement.querySelector(':scope > [role="group"]');
+						if (group) { group.setAttribute('data-rzd-branch', ''); group.style.setProperty('--rzd-branch', r.color); nextG.add(group); }
+					});
+				}
+				for (const el of tinted) if (!nextT.has(el)) { el.removeAttribute('data-rzd-tint'); el.style.removeProperty('--rzd-tint'); }
+				for (const el of badged) if (!nextB.has(el)) { el.removeAttribute('data-rzd-badge'); el.style.removeProperty('--rzd-badge'); }
+				for (const el of grouped) if (!nextG.has(el)) { el.removeAttribute('data-rzd-branch'); el.style.removeProperty('--rzd-branch'); }
+				tinted = nextT; badged = nextB; grouped = nextG;
 			}
-			let tintTimer = 0;
+			// Accent colour: recolours the app's own accent tokens (selected tab underline, focus rings, links,
+			// primary buttons) and this plugin's own controls. Text on it is picked for contrast.
+			const ACCENT_TOKENS = ['--dsw-alias-state-business-primary', '--dsw-alias-brand-primary', '--dsw-alias-brand-primary-invert', '--rzd-accent', '--rzd-accent-text'];
+			function applyAccent(s) {
+				const on = !!(s.accentEnabled && /^#[0-9a-f]{6}$/i.test(s.accent || ''));
+				for (const k of ACCENT_TOKENS) body.style.removeProperty(k);
+				if (!on) return;
+				const text = famContrast(s.accent, '#ffffff') >= famContrast(s.accent, '#111111') ? '#ffffff' : '#111111';
+				body.style.setProperty('--dsw-alias-state-business-primary', s.accent);
+				body.style.setProperty('--dsw-alias-brand-primary', s.accent);
+				body.style.setProperty('--dsw-alias-brand-primary-invert', text);
+				body.style.setProperty('--rzd-accent', s.accent);
+				body.style.setProperty('--rzd-accent-text', text);
+			}			let tintTimer = 0;
 			const listMo = new MutationObserver(() => {
 				clearTimeout(tintTimer);
 				tintTimer = setTimeout(() => applyTints(store.get().settings), 120);
@@ -555,6 +599,7 @@ window.__ModuleLoader__.load({
 				fxStyle.textContent = fx.kf + fx.rule;
 				renderBorder(s);
 				applyTints(s);
+				applyAccent(s);
 			}
 
 			render();
@@ -571,6 +616,7 @@ window.__ModuleLoader__.load({
 				listMo.disconnect();
 				clearTimeout(tintTimer);
 				clearTints();
+				for (const k of ACCENT_TOKENS) body.style.removeProperty(k);
 				if (frame) frame.remove();
 				if (box) box.remove();
 				tint(false, 0);
@@ -595,20 +641,20 @@ window.__ModuleLoader__.load({
 .rzd-btn:hover:not(:disabled){background:var(--dsw-alias-bg-layer-2)}
 .rzd-btn:active:not(:disabled){transform:scale(.97)}
 .rzd-btn:disabled{opacity:.5;cursor:default}
-.rzd-btn[data-primary]{background:var(--dsw-alias-brand-primary);border-color:transparent;color:var(--dsw-alias-bg-base)}
-.rzd-btn[data-primary]:hover:not(:disabled){background:var(--dsw-alias-brand-primary);filter:brightness(1.1)}
+.rzd-btn[data-primary]{background:var(--rzd-accent,var(--dsw-alias-brand-primary));border-color:transparent;color:var(--rzd-accent-text,var(--dsw-alias-bg-base))}
+.rzd-btn[data-primary]:hover:not(:disabled){background:var(--rzd-accent,var(--dsw-alias-brand-primary));filter:brightness(1.1)}
 .rzd-tabs{display:flex;gap:6px;flex-wrap:wrap}
 .rzd-tab{border:0.5px solid var(--dsw-alias-border-l1);background:transparent;color:var(--dsw-alias-label-secondary);border-radius:999px;padding:5px 14px;font:inherit;cursor:pointer;transition:background .15s,color .15s}
 .rzd-tab:hover{background:var(--dsw-alias-bg-layer-2)}
-.rzd-tab[data-on]{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-brand-primary)}
-.rzd-tab[aria-selected="true"]{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-brand-primary)}
+.rzd-tab[data-on]{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-color:var(--rzd-accent,var(--dsw-alias-brand-primary))}
+.rzd-tab[aria-selected="true"]{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-color:var(--rzd-accent,var(--dsw-alias-brand-primary))}
 .rzd-input{flex:1;min-width:140px;border:0.5px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:inherit;border-radius:8px;padding:7px 10px;font:inherit;outline:none}
-.rzd-input:focus{border-color:var(--dsw-alias-brand-primary)}
+.rzd-input:focus{border-color:var(--rzd-accent,var(--dsw-alias-brand-primary))}
 .rzd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 .rzd-thumb{position:relative;aspect-ratio:16/10;padding:0;border:2px solid transparent;border-radius:10px;overflow:hidden;cursor:pointer;background:var(--dsw-alias-bg-layer-2);transition:transform .15s,border-color .15s}
 .rzd-thumb:hover:not(:disabled){transform:translateY(-2px);border-color:var(--dsw-alias-border-l2)}
 .rzd-thumb:disabled{cursor:default;opacity:.7}
-.rzd-thumb[data-picked]{border-color:var(--dsw-alias-brand-primary)}
+.rzd-thumb[data-picked]{border-color:var(--rzd-accent,var(--dsw-alias-brand-primary))}
 .rzd-thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .rzd-tag{position:absolute;left:6px;bottom:6px;padding:1px 6px;border-radius:6px;font-size:11px;line-height:16px;color:#fff;background:rgba(0,0,0,.55)}
 .rzd-err{color:var(--dsw-alias-state-error-primary);font-size:13px}
@@ -617,20 +663,24 @@ window.__ModuleLoader__.load({
 .rzd-preview{height:92px;border-radius:10px;overflow:hidden;border:0.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2);display:flex;align-items:center;justify-content:center;color:var(--dsw-alias-label-secondary)}
 .rzd-preview img,.rzd-preview video{width:100%;height:100%;object-fit:cover}
 .rzd-slider{display:grid;grid-template-columns:150px 1fr 56px;align-items:center;gap:12px}
-.rzd-slider input{width:100%;accent-color:var(--dsw-alias-brand-primary)}
+.rzd-slider input{width:100%;accent-color:var(--rzd-accent,var(--dsw-alias-brand-primary))}
 .rzd-slider output{text-align:right;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
 .rzd-switch{position:relative;width:38px;height:22px;border-radius:999px;border:0;padding:0;cursor:pointer;background:var(--dsw-alias-border-l2);transition:background .15s;flex:none}
-.rzd-switch[aria-checked="true"]{background:var(--dsw-alias-brand-primary)}
+.rzd-switch[aria-checked="true"]{background:var(--rzd-accent,var(--dsw-alias-brand-primary))}
 .rzd-switch::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s}
 .rzd-switch[aria-checked="true"]::after{transform:translateX(16px)}
 .rzd-chips{display:flex;gap:8px;flex-wrap:wrap}
 .rzd-chip{display:flex;flex-direction:column;gap:2px;text-align:left;min-width:130px;border:0.5px solid var(--dsw-alias-border-l1);background:transparent;color:inherit;border-radius:10px;padding:8px 12px;font:inherit;cursor:pointer;transition:background .15s,border-color .15s}
 .rzd-chip:hover{background:var(--dsw-alias-bg-layer-2)}
-.rzd-chip[aria-checked="true"]{border-color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-bg-layer-2)}
+.rzd-chip[aria-checked="true"]{border-color:var(--rzd-accent,var(--dsw-alias-brand-primary));background:var(--dsw-alias-bg-layer-2)}
 .rzd-chip small{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:16px}
 .rzd-working{padding:12px 14px;border-radius:8px;color:var(--dsw-alias-label-secondary);font-size:13px}
+.rzd-swatch{width:30px;height:30px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.18);transition:transform .12s}
+.rzd-swatch:hover{transform:scale(1.1)}
+.rzd-swatch[aria-checked="true"]{border-color:var(--dsw-alias-label-primary);box-shadow:0 0 0 2px var(--dsw-alias-bg-layer-1),inset 0 0 0 1px rgba(0,0,0,.18)}
+.rzd-swatch:focus-visible{outline:2px solid var(--dsw-alias-label-primary);outline-offset:2px}
 .rzd-color{width:38px;height:28px;padding:0;border:0.5px solid var(--dsw-alias-border-l2);border-radius:6px;background:transparent;cursor:pointer}
-.rzd a{color:var(--dsw-alias-brand-primary)}
+.rzd a{color:var(--rzd-accent,var(--dsw-alias-brand-primary))}
 @media (max-width:640px){.rzd-slider{grid-template-columns:1fr}.rzd-slider output{text-align:left}}
 `;
 
@@ -839,7 +889,7 @@ window.__ModuleLoader__.load({
 .rzp-btn:hover:not(:disabled){background:var(--dsw-alias-bg-layer-2)}
 .rzp-btn:active:not(:disabled){transform:scale(.95)}
 .rzp-btn:disabled{opacity:.45;cursor:default}
-.rzp-toast{color:var(--dsw-alias-brand-primary);font-weight:600}
+.rzp-toast{color:var(--rzd-accent,var(--dsw-alias-brand-primary));font-weight:600}
 @keyframes rzpBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 @keyframes rzpHop{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-7px) scale(1.08)}}
 @keyframes rzpShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
@@ -855,7 +905,7 @@ window.__ModuleLoader__.load({
 .rzb>*{pointer-events:auto}
 .rzb-pet{position:relative;width:64px;height:64px;font-size:46px;line-height:56px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;padding:0;cursor:pointer;border-radius:50%;transition:transform .12s}
 .rzb-pet:active{transform:scale(.88)}
-.rzb-pet:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+.rzb-pet:focus-visible{outline:2px solid var(--rzd-accent,var(--dsw-alias-brand-primary));outline-offset:2px}
 .rzb-pet[data-mood="idle"] .rzp-face,.rzb-pet[data-mood="happy"] .rzp-face{animation:rzpBob 2.4s ease-in-out infinite}
 .rzb-pet[data-mood="working"] .rzp-face{animation:rzpHop .6s ease-in-out infinite}
 .rzb-pet[data-mood="hungry"] .rzp-face{animation:rzpShake .9s ease-in-out infinite}
@@ -863,7 +913,7 @@ window.__ModuleLoader__.load({
 .rzb .rzp-bubble{position:absolute;top:-6px;right:-4px;font-size:18px}
 .rzb-chip{display:flex;align-items:center;justify-content:center;gap:4px;max-width:100%;min-height:26px;padding:0 10px;border:0.5px solid var(--dsw-alias-border-l2);border-radius:999px;background:var(--dsw-alias-bg-layer-1);color:color-mix(in srgb,var(--dsw-alias-label-primary) 78%,var(--dsw-alias-bg-layer-1));font:inherit;font-size:12px;line-height:16px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
 .rzb-chip:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary) 7%,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-label-primary)}
-.rzb-chip:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+.rzb-chip:focus-visible{outline:2px solid var(--rzd-accent,var(--dsw-alias-brand-primary));outline-offset:2px}
 .rzb-fig{position:relative;display:flex;justify-content:center}
 .rzb-perch{box-sizing:border-box;display:flex;justify-content:flex-end;align-items:center;gap:6px;width:100%;max-width:var(--dsh-composer-card-max-width,100%);height:38px;margin:0 auto 6px;user-select:none}
 .rzb-perch .rzb-pet{width:34px;height:34px;font-size:26px;line-height:32px}
@@ -1057,13 +1107,13 @@ window.__ModuleLoader__.load({
 .rzw-head{display:flex;justify-content:space-between;gap:8px;color:var(--dsw-alias-label-secondary)}
 .rzw-head b{color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums}
 .rzw-cv{display:block;width:100%;border-radius:8px;background:var(--rzw-soft);border:0.5px solid var(--rzw-line);outline:none}
-.rzw-cv:focus-visible{border-color:var(--dsw-alias-brand-primary)}
+.rzw-cv:focus-visible{border-color:var(--rzd-accent,var(--dsw-alias-brand-primary))}
 .rzw-row{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
 .rzw-btn{border:0.5px solid var(--rzw-line);background:transparent;color:inherit;border-radius:999px;min-height:32px;min-width:32px;padding:0 13px;font:inherit;cursor:pointer;transition:background .15s,transform .1s}
 .rzw-btn:hover:not(:disabled){background:var(--rzw-soft)}
 .rzw-btn:active:not(:disabled){transform:scale(.95)}
 .rzw-btn:disabled{opacity:.45;cursor:default}
-.rzw-btn[data-primary]{background:var(--dsw-alias-brand-primary);border-color:transparent;color:var(--dsw-alias-bg-base)}
+.rzw-btn[data-primary]{background:var(--rzd-accent,var(--dsw-alias-brand-primary));border-color:transparent;color:var(--rzd-accent-text,var(--dsw-alias-bg-base))}
 .rzw-pad{display:grid;grid-template-columns:repeat(3,44px);grid-auto-rows:36px;gap:5px;justify-content:center;touch-action:manipulation}
 .rzw-tpad{display:grid;grid-template-columns:repeat(4,36px) 1fr 1fr;gap:6px;height:36px;touch-action:manipulation}
 .rzw-tpad .rzw-btn{height:36px;padding:0;min-width:0}
@@ -1073,7 +1123,7 @@ window.__ModuleLoader__.load({
 .rzw-tpad .rzw-btn:nth-child(n+5){font-size:12px;font-weight:500}
 .rzw-over{text-align:center;color:var(--dsw-alias-label-secondary)}
 .rzw-over b{color:var(--dsw-alias-label-primary)}
-.rzw-msg{color:var(--dsw-alias-brand-primary);font-weight:600;text-align:center;min-height:16px}
+.rzw-msg{color:var(--rzd-accent,var(--dsw-alias-brand-primary));font-weight:600;text-align:center;min-height:16px}
 .rzw-tiles{display:grid;gap:6px;padding:6px;border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 20%,var(--dsw-alias-bg-layer-1));border:0.5px solid var(--rzw-line);touch-action:none}
 .rzw-tile{display:flex;align-items:center;justify-content:center;aspect-ratio:1;border-radius:6px;font-weight:700;transition:background .12s;background:color-mix(in srgb,var(--dsw-alias-label-primary) 15%,var(--dsw-alias-bg-layer-1));box-shadow:inset 0 0 0 0.5px var(--rzw-line)}
 .rzw-tile[aria-label=empty]{color:transparent}
@@ -1082,7 +1132,7 @@ window.__ModuleLoader__.load({
 .rzw-mine:hover:not([data-open]){background:color-mix(in srgb,var(--dsw-alias-label-primary) 32%,var(--dsw-alias-bg-layer-1))}
 .rzw-mine[data-open]{background:var(--dsw-alias-bg-layer-1);box-shadow:none;cursor:default}
 .rzw-mine[data-boom]{background:#fecaca}
-.rzw-mine[data-cursor]{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px;border-radius:5px;z-index:1}
+.rzw-mine[data-cursor]{outline:2px solid var(--rzd-accent,var(--dsw-alias-brand-primary));outline-offset:-2px;border-radius:5px;z-index:1}
 .rzw-hint{color:var(--dsw-alias-label-secondary);text-align:center;font-size:11px}
 .rzw .rzp-bars{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .rzw-meter{display:flex;flex-direction:column;gap:4px}
@@ -1542,6 +1592,25 @@ window.__ModuleLoader__.load({
 					h(Switch, { checked: s.celebrateOnGame, label: 'Celebrate a won game', onChange: (v) => store.setSettings({ celebrateOnGame: v }) })),
 				s.celebrate !== 'off' ? h('div', { className: 'rzd-row', style: { justifyContent: 'flex-start' } }, h('button', { type: 'button', className: 'rzd-btn', onClick: () => store.celebrate(s.celebrate) }, 'Try it')) : null);
 		}
+		const ACCENT_SWATCHES = ['#4176e6', '#7c5cff', '#ec4899', '#ef4444', '#f59e0b', '#22c55e', '#14b8a6', '#06b6d4'];
+		function AccentCard(p) {
+			const { store } = p;
+			const st = useStore(store);
+			const s = st.settings;
+			const color = /^#[0-9a-f]{6}$/i.test(s.accent || '') ? s.accent : '#4176e6';
+			const page = getComputedStyle(document.body).getPropertyValue('--dsw-alias-bg-base').trim();
+			const bg = (page.match(/\d+/g) || [255, 255, 255]).slice(0, 3);
+			const bgHex = famToHex({ r: Number(bg[0]), g: Number(bg[1]), b: Number(bg[2]) });
+			const ratio = famContrast(color, bgHex);
+			return h('section', { className: 'rzd-card', 'aria-label': 'Accent color' },
+				h('div', { className: 'rzd-row' },
+					h('div', { className: 'rzd-col' }, h('h3', { className: 'rzd-title' }, 'Accent color'), h('div', { className: 'rzd-sub' }, 'Recolors the selected tab line, focus rings, primary buttons and this plugin\u2019s controls.')),
+					h(Switch, { checked: s.accentEnabled, label: 'Use my accent color', onChange: (v) => store.setSettings({ accentEnabled: v, accent: v && !s.accent ? color : s.accent }) })),
+				s.accentEnabled ? h('div', { className: 'rzd-col' },
+					h('div', { className: 'rzd-chips', role: 'radiogroup', 'aria-label': 'Accent swatches' }, ACCENT_SWATCHES.map((c) => h('button', { key: c, type: 'button', role: 'radio', 'aria-checked': color.toLowerCase() === c, 'aria-label': c, className: 'rzd-swatch', style: { background: c }, onClick: () => store.setSettings({ accent: c }) }))),
+					h('label', { className: 'rzd-slider' }, h('span', null, 'Custom'), h('input', { type: 'color', className: 'rzd-color', value: color, onChange: (e) => store.setSettings({ accent: e.target.value }) }), h('span', null)),
+					ratio < 3 ? h('div', { className: 'rzd-err', role: 'status' }, 'That color is hard to see against the page (contrast ' + ratio.toFixed(1) + ':1). Pick something darker or brighter.') : h('div', { className: 'rzd-ok' }, 'Contrast ' + ratio.toFixed(1) + ':1, easy to see.')) : null);
+		}
 		function BorderCard(p) {
 			const { store } = p;
 			const st = useStore(store);
@@ -1569,6 +1638,8 @@ window.__ModuleLoader__.load({
 					h('div', { className: 'rzd-col' }, h('h3', { className: 'rzd-title' }, 'Chat colors'), h('div', { className: 'rzd-sub' }, 'Color a chat in the sidebar when its title has a word you pick. Sub-chats named after their model (like "Opus design audit") get that color.')),
 					h(Switch, { checked: s.tintEnabled, label: 'Color chats by name', onChange: (v) => store.setSettings({ tintEnabled: v }) })),
 				s.tintEnabled ? h('div', { className: 'rzd-col' },
+					h('div', { className: 'rzd-row' }, h('span', null, 'Sub-chats get a darker shade of their parent\u2019s color'), h(Switch, { checked: s.familyTint, label: 'Family shades', onChange: (v) => store.setSettings({ familyTint: v }) })),
+					h('div', { className: 'rzd-row' }, h('span', null, 'Show a label badge on colored sub-chats'), h(Switch, { checked: s.lineageBadges, label: 'Badges', onChange: (v) => store.setSettings({ lineageBadges: v }) })),
 					rules.map((r, i) => h('div', { key: i, className: 'rzd-row', style: { justifyContent: 'flex-start' } },
 						h('span', { className: 'rzd-sub' }, 'Title has'),
 						h('input', { className: 'rzd-input', style: { maxWidth: 180, minWidth: 90 }, value: r.match, 'aria-label': 'Word to match', onChange: (e) => update(i, { match: e.target.value }) }),
@@ -1632,6 +1703,7 @@ window.__ModuleLoader__.load({
 					h(StateEffectsCard, { store }),
 					h(CelebrateCard, { store }),
 					h(BorderCard, { store }),
+					h(AccentCard, { store }),
 					h(TintCard, { store }),
 					h(PetCard, { store }),
 					h('div', { className: 'rzd-row' },
@@ -1641,7 +1713,7 @@ window.__ModuleLoader__.load({
 		}
 
 		return {
-			__test: { G2048Panel, MinesPanel, PongPanel, allEffectsCss, StateEffectsCard, Celebration, PerchDock, Buddy, centerPiece, PetPanel, GameWindow, effectCss, borderCss, tintFor, hexRgb, clamp, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel, themeFrom, exportTheme, parseTheme, PRESETS },
+			__test: { withDefaults, G2048Panel, MinesPanel, PongPanel, allEffectsCss, StateEffectsCard, Celebration, PerchDock, Buddy, centerPiece, PetPanel, GameWindow, effectCss, borderCss, tintFor, hexRgb, clamp, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel, themeFrom, exportTheme, parseTheme, PRESETS },
 			inject: ['slots', 'connection'],
 			apply(ctx) {
 				const store = createStore(ctx.get('connection').rpc);
