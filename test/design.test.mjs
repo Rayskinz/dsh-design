@@ -23,8 +23,8 @@ async function call(ep, payload) {
 }
 
 test('settings are clamped and validated', () => {
-  const s = host.sanitizeSettings({ panel: 999, dim: -4, blur: 7, speed: 'x', effect: 'bogus', borderStyle: 'neon', borderWidth: 99, borderColor: 'red', tintRules: [{ match: ' opus ', color: '#ABCDEF' }, { match: '', color: '#000000' }, { match: 'x', color: 'nope' }, null] })
-  assert.equal(s.panel, 100); assert.equal(s.dim, 0); assert.equal(s.blur, 7); assert.equal(s.speed, 3)
+  const s = host.sanitizeSettings({ giphyKey: 'IGNORED_FROM_PAGE', panel: 999, dim: -4, blur: 7, speed: 'x', effect: 'bogus', borderStyle: 'neon', borderWidth: 99, borderColor: 'red', tintRules: [{ match: ' opus ', color: '#ABCDEF' }, { match: '', color: '#000000' }, { match: 'x', color: 'nope' }, null] })
+  assert.equal(s.panel, 100); assert.equal(s.dim, 0); assert.equal(s.blur, 7); assert.equal(s.speed, 3); assert.equal(s.giphyKey, '', 'a key sent from the page is ignored')
   assert.equal(s.effect, 'off'); assert.equal(s.borderStyle, 'neon'); assert.equal(s.borderWidth, 8); assert.equal(s.borderColor, '#7c5cff')
   assert.deepEqual(s.tintRules, [{ match: 'opus', color: '#abcdef' }])
 })
@@ -96,7 +96,7 @@ test('host: input validation', async () => {
   assert.match((await call('apply', { url: 'https://example.com/x.gif' })).error.message, /allowed list/)
   assert.match((await call('apply', { url: 'http://w.wallhaven.cc/x.jpg' })).error.message, /https/)
   assert.match((await call('applyLink', { url: 'not a url' })).error.message, /valid link/)
-  assert.match((await call('giphy', { key: 'short' })).error.message, /does not look right/)
+  assert.match((await call('giphy', { q: 'x' })).error.message, /Add your GIPHY key first/)
   assert.match((await call('nope')).error.message, /unknown endpoint/)
   const huge = Buffer.alloc(41 * 1024 * 1024).toString('base64')
   assert.match((await call('applyData', { ext: 'gif', base64: huge })).error.message, /40 MB/)
@@ -206,5 +206,101 @@ test('themes: every preset survives the host sanitiser unchanged', () => {
     const s = host.sanitizeSettings(pr.theme)
     for (const [k, v] of Object.entries(pr.theme)) assert.deepEqual(s[k], v, pr.id + ':' + k)
   }
+})
+function fakeRes(chunks, headers = {}) {
+  const { EventEmitter } = globalThis.__ee
+  const res = new EventEmitter(); res.headers = headers; res.destroyed = false
+  res.destroy = () => { res.destroyed = true; setImmediate(() => res.emit('close')) }
+  res.resume = () => {}
+  setImmediate(async () => { for (const c of chunks) { if (res.destroyed) return; res.emit('data', Buffer.from(c)); await new Promise((r) => setImmediate(r)) } if (!res.destroyed) { res.emit('end'); res.emit('close') } })
+  return res
+}
+globalThis.__ee = await import('node:events')
+
+test('hardening: body is cut off while streaming, with or without Content-Length', async () => {
+  await assert.rejects(host.collectBody(fakeRes(['aaaa', 'bbbb', 'cccc']), 6), /over/)
+  await assert.rejects(host.collectBody(fakeRes(['a'], { 'content-length': '999999' }), 10), /over/)
+  assert.equal((await host.collectBody(fakeRes(['ab', 'cd']), 10)).toString(), 'abcd')
+  await assert.rejects(host.collectBody(fakeRes(['a'], { 'content-length': '999999' }), 10), (e) => e.name === 'Error' && /over/.test(e.message))
+})
+
+test('hardening: redirects are followed by hand and every hop is checked', async () => {
+  const seen = []
+  const mkRequest = (map) => async (url) => { seen.push(url.hostname); const r = map[url.href]; if (!r) throw new Error('unmapped ' + url.href); return r }
+  // public -> public ok
+  let r = await host.safeGet('https://a.example.com/x', { request: mkRequest({ 'https://a.example.com/x': { status: 302, headers: {}, location: 'https://b.example.com/y' }, 'https://b.example.com/y': { status: 200, headers: {}, bytes: Buffer.from('ok') } }) })
+  assert.equal(r.bytes.toString(), 'ok'); assert.deepEqual(seen, ['a.example.com', 'b.example.com'])
+  // public -> private is refused BEFORE the private host is contacted
+  seen.length = 0
+  await assert.rejects(host.safeGet('https://a.example.com/x', { request: mkRequest({ 'https://a.example.com/x': { status: 302, headers: {}, location: 'https://127.0.0.1/secret' } }) }), /local network/)
+  assert.deepEqual(seen, ['a.example.com'], 'private hop never requested')
+  await assert.rejects(host.safeGet('https://a.example.com/x', { request: mkRequest({ 'https://a.example.com/x': { status: 302, headers: {}, location: 'http://b.example.com/' } }) }), /https/)
+  // relative redirect, loop, allow-list on every hop
+  r = await host.safeGet('https://a.example.com/x', { request: mkRequest({ 'https://a.example.com/x': { status: 301, headers: {}, location: '/z' }, 'https://a.example.com/z': { status: 200, headers: {}, bytes: Buffer.from('rel') } }) })
+  assert.equal(r.bytes.toString(), 'rel')
+  await assert.rejects(host.safeGet('https://a.example.com/l', { request: async () => ({ status: 302, headers: {}, location: '/l' }) }), /too many times/)
+  await assert.rejects(host.safeGet('https://w.wallhaven.cc/a', { allowHosts: new Set(['w.wallhaven.cc']), request: mkRequest({ 'https://w.wallhaven.cc/a': { status: 302, headers: {}, location: 'https://evil.example.com/a' } }) }), /not on the allowed list/)
+})
+
+test('hardening: DNS answers pointing at private addresses are refused at connect time', async () => {
+  const dns = await import('node:dns')
+  const orig = dns.default.lookup
+  const answer = (list) => { dns.default.lookup = (h, o, cb) => setImmediate(() => cb(null, list)) }
+  try {
+    const run = (opts) => new Promise((res) => host.publicLookup('pub.example.com', opts, (e, a, f) => res({ e, a, f })))
+    answer([{ address: '10.0.0.5', family: 4 }]); assert.match((await run({})).e.message, /local network/)
+    answer([{ address: '93.184.216.34', family: 4 }, { address: '127.0.0.1', family: 4 }]); assert.match((await run({})).e.message, /local network/, 'any private answer refuses')
+    answer([{ address: 'fe90::1', family: 6 }]); assert.match((await run({})).e.message, /local network/, 'fe80::/10 range')
+    answer([{ address: '93.184.216.34', family: 4 }])
+    const ok1 = await run({}); assert.equal(ok1.a, '93.184.216.34'); assert.equal(ok1.f, 4)
+    const ok2 = await run({ all: true }); assert.deepEqual(ok2.a, [{ address: '93.184.216.34', family: 4 }])
+  } finally { dns.default.lookup = orig }
+})
+
+test('hardening: fe80::/10 and mapped ipv6 are private', () => {
+  for (const a of ['fe80::1', 'fe90::1', 'fea0::1', 'febf::1', '::ffff:10.0.0.1']) assert.equal(host.isPrivateHost(a), true, a)
+  assert.equal(host.isPrivateHost('2606:4700::1111'), false)
+})
+
+test('hardening: the GIPHY key never reaches the page', async () => {
+  const set = await call('setGiphyKey', { key: 'abcdefghij0123456789' })
+  assert.equal(set.ok, true); assert.equal(set.value.giphyKeySet, true); assert.equal('giphyKey' in set.value, false)
+  const got = (await call('getSettings')).value
+  assert.equal(got.giphyKeySet, true); assert.equal('giphyKey' in got, false)
+  assert.ok(!JSON.stringify(await call('setSettings', { panel: 20, giphyKey: 'otherotherother1234' })).includes('otherother'))
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8')).giphyKey, 'abcdefghij0123456789', 'kept on disk, unchanged by setSettings')
+  assert.match((await call('setGiphyKey', { key: 'bad key!' })).error.message, /does not look right/)
+  assert.equal((await call('setGiphyKey', { key: '' })).value.giphyKeySet, false)
+})
+
+test('hardening: concurrent saves lose nothing and leave valid JSON', async () => {
+  await Promise.all(Array.from({ length: 25 }, (_, i) => call('setSettings', { panel: 10 + i, dim: i })))
+  const s = JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8'))
+  assert.equal(typeof s.panel, 'number'); assert.ok(s.panel >= 10 && s.panel <= 34)
+  await Promise.all([call('setSettings', { blur: 9 }), call('setSettings', { speed: 7 }), call('setSettings', { effect: 'pulse' })])
+  const t = JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8'))
+  assert.equal(t.blur, 9); assert.equal(t.speed, 7); assert.equal(t.effect, 'pulse', 'no lost update')
+  assert.equal(fs.readdirSync(dir).filter((n) => n.endsWith('.tmp')).length, 0, 'no temp files left')
+})
+
+test('hardening: simultaneous background saves leave exactly one consistent file', async () => {
+  const bytes = (c) => Buffer.from('GIF89a' + c.repeat(50)).toString('base64')
+  await Promise.all(['a', 'b', 'c', 'd', 'e'].map((c) => call('applyData', { ext: 'gif', base64: bytes(c) })))
+  const files = fs.readdirSync(dir).filter((n) => n.startsWith('background-') && !n.endsWith('.json'))
+  assert.equal(files.length, 1, files.join(','))
+  const meta = JSON.parse(fs.readFileSync(path.join(dir, 'background.json'), 'utf8'))
+  assert.equal(meta.file, files[0])
+  const d = (await call('data')).value; assert.equal(d.has, true)
+  await call('clear')
+})
+
+test('hardening: oversized requests and encoded uploads are refused early', async () => {
+  const r = host.rpcRoute('applyData')
+  const res = await r.fetch(new Request('http://x', { method: 'POST', headers: { 'content-type': 'application/json', 'content-length': String(80 * 1024 * 1024) }, body: '{}' }))
+  assert.equal(res.status, 413)
+  const huge = await r.fetch(new Request('http://x', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'client-request', rpcId: '1', method: 'rayskinz-design.applyData', payload: { ext: 'gif', base64: 'A'.repeat(60 * 1024 * 1024) } }) }))
+  assert.equal(huge.status, 413, 'body over the request limit')
+  const bad = await call('applyData', { ext: 'gif', base64: 'A'.repeat(56_000_000) })
+  assert.match(bad.error.message, /40 MB/, 'under the request limit but over 40 MB once decoded')
 })
 test.after(() => fs.rmSync(dir, { recursive: true, force: true }))

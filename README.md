@@ -36,6 +36,13 @@ Wallpapers work with no setup. For GIF search, create a free key at https://deve
 
 `~/.dsh/plugins/rayskinz-design/` holds `settings.json` and your current background file. Delete the folder to reset everything.
 
+## Safety
+
+- Pasted links must be https and may not point at your own computer or local network (checked when the connection is made and on every redirect).
+- Downloads are size-limited while they stream (40 MB).
+- Your GIPHY key is stored on disk and used only by the plugin's background process. The Settings page never receives it back.
+- Settings and pet saves are written atomically, so a crash cannot leave half a file.
+
 ## Privacy
 
 The plugin talks only to wallhaven.cc and api.giphy.com when you search, and to the link you paste when you use one. Nothing is sent anywhere else.
