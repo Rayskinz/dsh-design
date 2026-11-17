@@ -13,6 +13,8 @@ window.__ModuleLoader__.load({
 		const DEFAULTS = {
 			bgEnabled: true, panel: 55, dim: 0, blur: 0, effect: 'off', speed: 3, effectColor: '#ff3030', giphyKeySet: false,
 			borderStyle: 'off', borderWidth: 2, borderColor: '#7c5cff', borderOnlyWorking: false,
+			intensity: 70, stateEffects: { warning: 'pulse', error: 'off', done: 'off' }, stateColors: { warning: '#fbbf24', error: '#f87171', done: '#4ade80' },
+			celebrate: 'off', celebrateOnGame: true, accent: '', accentEnabled: false, fontFamily: 'default', fontSize: 0, lineSpacing: 0, userBubble: 'default', chatWidth: 0, familyTint: true, lineageBadges: true,
 			tintEnabled: false, petEnabled: false, windowX: -1, windowY: -1, windowTab: 'pet', windowMin: false, windowOpen: false, windowSize: 1,
 			tintRules: [
 				{ match: 'opus', color: '#a78bfa' }, { match: 'sonnet', color: '#60a5fa' }, { match: 'haiku', color: '#4ade80' },
@@ -33,7 +35,17 @@ window.__ModuleLoader__.load({
 			{ id: 'pulse', label: 'Pulse', hint: 'One color, breathing glow' },
 			{ id: 'scanner', label: 'Scanner', hint: 'A bright bar sweeps back and forth' },
 			{ id: 'ember', label: 'Ember', hint: 'Warm flickering fire edge' },
+			{ id: 'aurora', label: 'Aurora', hint: 'Soft green and violet curtains drift' },
+			{ id: 'matrix', label: 'Matrix', hint: 'Green code rains down the row' },
+			{ id: 'lightning', label: 'Lightning', hint: 'Quick electric flashes' },
 		];
+		const STATE_LIST = [
+			{ key: 'warning', label: 'Waiting for you', hint: 'Needs an approval or an answer' },
+			{ key: 'error', label: 'Error', hint: 'Something went wrong' },
+			{ key: 'done', label: 'Finished', hint: 'A chat that completed' },
+		];
+		const STATE_EFFECT_LIST = [['off', 'Off'], ['pulse', 'Pulse'], ['scanner', 'Scanner'], ['ember', 'Ember'], ['rainbow', 'Rainbow']];
+		const CELEBRATIONS = [['off', 'Off'], ['confetti', 'Confetti'], ['sparkles', 'Sparkles'], ['hearts', 'Hearts']];
 		const RAINBOW = ['255,60,60', '255,170,40', '255,235,60', '60,230,110', '60,170,255', '170,90,255'];
 		const WORKING = '[role="treeitem"]:has(svg[data-state="ongoing"])';
 		const WORKING_ICON = WORKING + ' svg[data-state="ongoing"]';
@@ -49,38 +61,86 @@ window.__ModuleLoader__.load({
 		}
 
 		// ---------------------------------------------------------------- effects
-		function effectCss(s, sel, icon) {
+		// One effect as CSS for any selector. `k` is the intensity (0.1 - 1): it scales glow strength and
+		// fill opacity, so a low setting is a quiet hint and 100 is the full show. `name` keeps keyframes unique
+		// per state so several effects can run at once.
+		function effectCss(s, sel, icon, opt) {
+			const o = opt || {};
+			const effect = o.effect || s.effect;
+			const k = clamp((o.intensity !== undefined ? o.intensity : s.intensity !== undefined ? s.intensity : 70) / 100, 0.1, 1);
 			const d = clamp(Number(s.speed) || 3, 1, 8);
-			const c = hexRgb(s.effectColor);
-			if (s.effect === 'rainbow') {
-				const stops = RAINBOW.concat(RAINBOW[0]).map((x) => 'rgba(' + x + ',.38)').join(',');
-				const glow = RAINBOW.concat(RAINBOW[0]).map((x, i, a) => Math.round((i / (a.length - 1)) * 100) + '%{box-shadow:0 0 10px 2px rgba(' + x + ',.8)}').join('');
+			const c = hexRgb(o.color || s.effectColor);
+			const n = o.name || 'rzd';
+			const a = (v) => (v * (0.35 + k * 0.9)).toFixed(3);
+			const px = (v) => Math.round(v * (0.4 + k * 0.9));
+			const iconOn = (color) => icon + '{color:' + color + '!important;filter:drop-shadow(0 0 ' + px(4) + 'px ' + color + ')}';
+			if (effect === 'rainbow') {
+				const stops = RAINBOW.concat(RAINBOW[0]).map((x) => 'rgba(' + x + ',' + a(0.38) + ')').join(',');
+				const glow = RAINBOW.concat(RAINBOW[0]).map((x, i, arr) => Math.round((i / (arr.length - 1)) * 100) + '%{box-shadow:0 0 ' + px(10) + 'px 2px rgba(' + x + ',' + a(0.8) + ')}').join('');
 				return {
-					kf: '@keyframes rzdWave{0%{background-position:0% 50%}100%{background-position:200% 50%}}@keyframes rzdGlow{' + glow + '}@keyframes rzdHue{0%{filter:hue-rotate(0deg) drop-shadow(0 0 4px currentColor)}100%{filter:hue-rotate(360deg) drop-shadow(0 0 4px currentColor)}}',
-					rule: sel + '{background-color:transparent!important;background-image:linear-gradient(100deg,' + stops + ')!important;background-size:200% 100%!important;border-radius:8px;animation:rzdWave ' + d + 's linear infinite,rzdGlow ' + d + 's linear infinite}' + icon + '{color:#ff3030!important;animation:rzdHue ' + d + 's linear infinite}',
+					kf: '@keyframes ' + n + 'Wave{0%{background-position:0% 50%}100%{background-position:200% 50%}}@keyframes ' + n + 'Glow{' + glow + '}@keyframes ' + n + 'Hue{0%{filter:hue-rotate(0deg) drop-shadow(0 0 4px currentColor)}100%{filter:hue-rotate(360deg) drop-shadow(0 0 4px currentColor)}}',
+					rule: sel + '{background-color:transparent!important;background-image:linear-gradient(100deg,' + stops + ')!important;background-size:200% 100%!important;border-radius:8px;animation:' + n + 'Wave ' + d + 's linear infinite,' + n + 'Glow ' + d + 's linear infinite}' + icon + '{color:#ff3030!important;animation:' + n + 'Hue ' + d + 's linear infinite}',
 				};
 			}
-			if (s.effect === 'pulse') {
+			if (effect === 'pulse') {
 				return {
-					kf: '@keyframes rzdPulse{0%,100%{box-shadow:0 0 6px 1px rgba(' + c + ',.55),inset 0 0 8px rgba(' + c + ',.25)}50%{box-shadow:0 0 16px 4px rgba(' + c + ',.95),inset 0 0 14px rgba(' + c + ',.45)}}',
-					rule: sel + '{background:rgba(' + c + ',.12)!important;border-radius:8px;animation:rzdPulse ' + (d * 0.55).toFixed(2) + 's ease-in-out infinite}' + icon + '{color:rgb(' + c + ')!important;filter:drop-shadow(0 0 4px rgb(' + c + '))}',
+					kf: '@keyframes ' + n + 'Pulse{0%,100%{box-shadow:0 0 ' + px(6) + 'px 1px rgba(' + c + ',' + a(0.55) + '),inset 0 0 ' + px(8) + 'px rgba(' + c + ',' + a(0.25) + ')}50%{box-shadow:0 0 ' + px(16) + 'px 4px rgba(' + c + ',' + a(0.95) + '),inset 0 0 ' + px(14) + 'px rgba(' + c + ',' + a(0.45) + ')}}',
+					rule: sel + '{background:rgba(' + c + ',' + a(0.12) + ')!important;border-radius:8px;animation:' + n + 'Pulse ' + (d * 0.55).toFixed(2) + 's ease-in-out infinite}' + iconOn('rgb(' + c + ')'),
 				};
 			}
-			if (s.effect === 'scanner') {
+			if (effect === 'scanner') {
 				return {
-					kf: '@keyframes rzdScan{0%{background-position:0% 50%}100%{background-position:100% 50%}}',
-					rule: sel + '{background-color:rgba(' + c + ',.08)!important;background-image:linear-gradient(90deg,transparent,rgba(' + c + ',.6) 50%,transparent)!important;background-size:38% 100%!important;background-repeat:no-repeat!important;border-radius:8px;box-shadow:0 0 8px 1px rgba(' + c + ',.35);animation:rzdScan ' + (d * 0.5).toFixed(2) + 's ease-in-out infinite alternate}' + icon + '{color:rgb(' + c + ')!important;filter:drop-shadow(0 0 4px rgb(' + c + '))}',
+					kf: '@keyframes ' + n + 'Scan{0%{background-position:0% 50%}100%{background-position:100% 50%}}',
+					rule: sel + '{background-color:rgba(' + c + ',' + a(0.08) + ')!important;background-image:linear-gradient(90deg,transparent,rgba(' + c + ',' + a(0.6) + ') 50%,transparent)!important;background-size:38% 100%!important;background-repeat:no-repeat!important;border-radius:8px;box-shadow:0 0 ' + px(8) + 'px 1px rgba(' + c + ',' + a(0.35) + ');animation:' + n + 'Scan ' + (d * 0.5).toFixed(2) + 's ease-in-out infinite alternate}' + iconOn('rgb(' + c + ')'),
 				};
 			}
-			if (s.effect === 'ember') {
+			if (effect === 'ember') {
 				return {
-					kf: '@keyframes rzdEmber{0%,100%{box-shadow:0 0 8px 1px rgba(255,120,30,.6),inset 0 -6px 10px rgba(255,80,0,.25)}30%{box-shadow:0 0 14px 3px rgba(255,170,40,.85),inset 0 -10px 14px rgba(255,120,0,.35)}60%{box-shadow:0 0 10px 2px rgba(255,90,20,.7),inset 0 -4px 8px rgba(255,60,0,.2)}}',
-					rule: sel + '{background:linear-gradient(0deg,rgba(255,110,20,.28),rgba(255,60,0,.06))!important;border-radius:8px;animation:rzdEmber ' + (d * 0.4).toFixed(2) + 's ease-in-out infinite}' + icon + '{color:#ff8a2a!important;filter:drop-shadow(0 0 4px #ff8a2a)}',
+					kf: '@keyframes ' + n + 'Ember{0%,100%{box-shadow:0 0 ' + px(8) + 'px 1px rgba(255,120,30,' + a(0.6) + '),inset 0 -6px ' + px(10) + 'px rgba(255,80,0,' + a(0.25) + ')}30%{box-shadow:0 0 ' + px(14) + 'px 3px rgba(255,170,40,' + a(0.85) + '),inset 0 -10px ' + px(14) + 'px rgba(255,120,0,' + a(0.35) + ')}60%{box-shadow:0 0 ' + px(10) + 'px 2px rgba(255,90,20,' + a(0.7) + '),inset 0 -4px ' + px(8) + 'px rgba(255,60,0,' + a(0.2) + ')}}',
+					rule: sel + '{background:linear-gradient(0deg,rgba(255,110,20,' + a(0.28) + '),rgba(255,60,0,' + a(0.06) + '))!important;border-radius:8px;animation:' + n + 'Ember ' + (d * 0.4).toFixed(2) + 's ease-in-out infinite}' + iconOn('#ff8a2a'),
+				};
+			}
+			if (effect === 'aurora') {
+				return {
+					kf: '@keyframes ' + n + 'Aurora{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}',
+					rule: sel + '{background-color:transparent!important;background-image:linear-gradient(115deg,rgba(52,211,153,' + a(0.32) + '),rgba(56,189,248,' + a(0.26) + '),rgba(167,139,250,' + a(0.34) + '),rgba(52,211,153,' + a(0.28) + '))!important;background-size:300% 100%!important;border-radius:8px;box-shadow:0 0 ' + px(12) + 'px rgba(94,234,212,' + a(0.28) + ');animation:' + n + 'Aurora ' + (d * 2.2).toFixed(2) + 's ease-in-out infinite}' + iconOn('#5eead4'),
+				};
+			}
+			if (effect === 'matrix') {
+				const g = 'rgba(34,255,120,';
+				return {
+					kf: '@keyframes ' + n + 'Rain{0%{background-position:0 0,0 0}100%{background-position:0 18px,0 34px}}',
+					rule: sel + '{background-color:rgba(0,40,18,' + a(0.55) + ')!important;background-image:repeating-linear-gradient(180deg,' + g + a(0.55) + ') 0 2px,transparent 2px 7px),repeating-linear-gradient(90deg,transparent 0 5px,' + g + a(0.22) + ') 5px 6px)!important;background-size:100% 18px,12px 34px!important;border-radius:8px;box-shadow:0 0 ' + px(8) + 'px ' + g + a(0.4) + ');animation:' + n + 'Rain ' + (d * 0.35).toFixed(2) + 's linear infinite}' + iconOn('#22ff78'),
+				};
+			}
+			if (effect === 'lightning') {
+				return {
+					kf: '@keyframes ' + n + 'Zap{0%,86%,100%{box-shadow:0 0 ' + px(4) + 'px rgba(147,197,253,' + a(0.18) + ');background:rgba(30,58,138,' + a(0.12) + ')}88%{box-shadow:0 0 ' + px(22) + 'px 5px rgba(224,242,254,' + a(1) + '),inset 0 0 ' + px(16) + 'px rgba(224,242,254,' + a(0.7) + ');background:rgba(186,230,253,' + a(0.45) + ')}90%{box-shadow:0 0 ' + px(6) + 'px rgba(147,197,253,' + a(0.3) + ');background:rgba(30,58,138,' + a(0.16) + ')}93%{box-shadow:0 0 ' + px(18) + 'px 3px rgba(191,219,254,' + a(0.9) + ');background:rgba(147,197,253,' + a(0.35) + ')}}',
+					rule: sel + '{background:rgba(30,58,138,' + a(0.12) + ')!important;border-radius:8px;animation:' + n + 'Zap ' + (d * 0.9).toFixed(2) + 's linear infinite}' + iconOn('#bfdbfe'),
 				};
 			}
 			return { kf: '', rule: '' };
 		}
 
+		// The working effect plus the optional looks for the other row states (waiting, error, done).
+		// Each state targets the sidebar dot the app already draws, so nothing here needs app internals.
+		const STATE_SELECTORS = {
+			warning: ['[role="treeitem"]:has(svg[data-state="warning"])', '[role="treeitem"] svg[data-state="warning"]'],
+			error: ['[role="treeitem"]:has(svg[data-state="error"])', '[role="treeitem"] svg[data-state="error"]'],
+			done: ['[role="treeitem"]:has(svg[data-state="done"])', '[role="treeitem"] svg[data-state="done"]'],
+		};
+		function allEffectsCss(s) {
+			const main = effectCss(s, WORKING, WORKING_ICON);
+			let kf = main.kf, rule = main.rule;
+			for (const key of Object.keys(STATE_SELECTORS)) {
+				const effect = s.stateEffects && s.stateEffects[key];
+				if (!effect || effect === 'off') continue;
+				const sel = STATE_SELECTORS[key];
+				const part = effectCss(s, sel[0], sel[1], { effect, color: s.stateColors && s.stateColors[key], name: 'rzd' + key[0].toUpperCase() + key.slice(1), intensity: Math.min(s.intensity !== undefined ? s.intensity : 70, 80) });
+				kf += part.kf; rule += part.rule;
+			}
+			return { kf, rule };
+		}
 		// ---------------------------------------------------------------- borders
 		// A fixed, click-through frame around the whole window. Gradient styles draw
 		// the ring with a mask (padding box minus content box), so the app stays visible.
@@ -205,7 +265,7 @@ window.__ModuleLoader__.load({
 
 		// ------------------------------------------------------------------ store
 		function createStore(rpc) {
-			let state = { ready: false, busy: '', error: '', settings: DEFAULTS, bg: { has: false }, pet: null, working: false, toast: '', buddy: null, say: '', perch: false };
+			let state = { ready: false, busy: '', error: '', settings: DEFAULTS, bg: { has: false }, pet: null, working: false, toast: '', buddy: null, say: '', perch: false, burst: null };
 			const subs = new Set();
 			let saveTimer = 0;
 			const emit = () => subs.forEach((f) => f());
@@ -308,6 +368,11 @@ window.__ModuleLoader__.load({
 			};
 			return {
 				pet: petActions,
+				celebrate: (kindOverride, at) => {
+					const kind = kindOverride || state.settings.celebrate;
+					if (!kind || kind === 'off' || !FX_KINDS.includes(kind)) return;
+					set({ burst: { id: (state.burst ? state.burst.id : 0) + 1, kind, at: at || null } });
+				},
 				setPerch: (v) => { if (v !== state.perch) set({ perch: v }); },
 				say: (line, ms = 3200) => {
 					clearTimeout(sayTimer);
@@ -482,7 +547,7 @@ window.__ModuleLoader__.load({
 					bgStyle.textContent = '';
 				}
 				tint(on, s.panel);
-				const fx = effectCss(s, WORKING, WORKING_ICON);
+				const fx = allEffectsCss(s);
 				fxStyle.textContent = fx.kf + fx.rule;
 				renderBorder(s);
 				applyTints(s);
@@ -737,6 +802,7 @@ window.__ModuleLoader__.load({
 			const s = st.settings;
 			const fx = effectCss(s, '.rzd-working', '.rzd-working-none');
 			const needsColor = s.effect === 'pulse' || s.effect === 'scanner';
+			const stateOpen = !!p.stateOpen;
 			return h('section', { className: 'rzd-card', 'aria-label': 'Working chat effect' },
 				h('div', { className: 'rzd-col' }, h('h3', { className: 'rzd-title' }, 'Working chat effect'), h('div', { className: 'rzd-sub' }, 'How a chat looks in the sidebar while the agent is working.')),
 				h('div', { className: 'rzd-chips', role: 'radiogroup', 'aria-label': 'Effect' }, EFFECTS.map((e) =>
@@ -744,6 +810,7 @@ window.__ModuleLoader__.load({
 				h('style', null, fx.kf + fx.rule),
 				h('div', { className: 'rzd-working' }, s.effect === 'off' ? 'Preview: nothing changes (app default).' : 'Preview: this chat is working…'),
 				s.effect !== 'off' ? h(Slider, { label: 'Cycle time', min: 1, max: 8, step: 0.5, value: s.speed, unit: 's', onChange: (v) => store.setSettings({ speed: v }) }) : null,
+				s.effect !== 'off' ? h(Slider, { label: 'Intensity', min: 10, max: 100, step: 5, value: s.intensity, unit: '%', onChange: (v) => store.setSettings({ intensity: v }) }) : null,
 				needsColor ? h('label', { className: 'rzd-slider' }, h('span', null, 'Color'), h('input', { type: 'color', className: 'rzd-color', value: s.effectColor, onChange: (e) => store.setSettings({ effectColor: e.target.value }) }), h('span', null)) : null);
 		}
 
@@ -903,6 +970,58 @@ window.__ModuleLoader__.load({
 				h('button', { type: 'button', className: 'rzb-pet', 'data-mood': mood, 'aria-label': 'Pat ' + pet.name, title: pet.name + ' \u00B7 Lv ' + petLevel(pet.xp) + ' \u00B7 ' + pet.coins + ' coins', onClick: () => store.pet.pat() },
 					h('span', { className: 'rzp-face' }, sp.emoji),
 					MOOD_BUBBLE[mood] ? h('span', { className: 'rzp-bubble', 'aria-hidden': true }, MOOD_BUBBLE[mood]) : null));
+		}
+		// ------------------------------------------------------------- celebration
+		// A full-window, click-through canvas that draws one particle burst when a chat finishes (or a
+		// game is won). It mounts only while a burst is alive, uses requestAnimationFrame, respects the
+		// reduced-motion setting, and removes itself when the last particle dies.
+		function Celebration(p) {
+			const { store } = p;
+			const st = useStore(store);
+			const cv = useRef(null);
+			const burst = st.burst;
+			const [live, setLive] = useState(null);
+			useEffect(() => {
+				if (!burst) return;
+				if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+				setLive(burst);
+			}, [burst && burst.id]);
+			useEffect(() => {
+				if (!live) return undefined;
+				const canvas = cv.current;
+				if (!canvas) return undefined;
+				const dpr = window.devicePixelRatio || 1;
+				const W = window.innerWidth, H = window.innerHeight;
+				canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+				const c = canvas.getContext('2d');
+				c.setTransform(dpr, 0, 0, dpr, 0, 0);
+				const at = live.at || (() => {
+					const card = document.querySelector('[data-composer-card]');
+					const r = card ? card.getBoundingClientRect() : null;
+					return r ? { x: r.left + r.width / 2, y: r.top } : { x: W / 2, y: H * 0.8 };
+				})();
+				let parts = fxBurst(live.kind, makeRng((Date.now() ^ 0x85ebca6b) >>> 0), at.x, at.y, W, H);
+				let last = performance.now(), raf = 0, stopped = false;
+				const heart = (x, y, s) => { c.beginPath(); c.moveTo(x, y + s * 0.3); c.bezierCurveTo(x, y - s * 0.2, x - s * 0.6, y - s * 0.2, x - s * 0.6, y + s * 0.15); c.bezierCurveTo(x - s * 0.6, y + s * 0.5, x, y + s * 0.7, x, y + s * 0.95); c.bezierCurveTo(x, y + s * 0.7, x + s * 0.6, y + s * 0.5, x + s * 0.6, y + s * 0.15); c.bezierCurveTo(x + s * 0.6, y - s * 0.2, x, y - s * 0.2, x, y + s * 0.3); c.fill(); };
+				const star = (s) => { c.beginPath(); for (let i = 0; i < 8; i++) { const r = i % 2 ? s * 0.28 : s * 0.7, a = (i * Math.PI) / 4; c.lineTo(Math.cos(a) * r, Math.sin(a) * r); } c.closePath(); c.fill(); };
+				const frame = (now) => {
+					if (stopped) return;
+					const dt = (now - last) / 1000; last = now;
+					parts = parts.map((q) => fxStep(q, dt, live.kind)).filter(fxAlive);
+					c.clearRect(0, 0, W, H);
+					for (const q of parts) {
+						c.globalAlpha = fxAlpha(q); c.fillStyle = q.color;
+						if (q.shape === 'heart') heart(q.x, q.y, q.size);
+						else { c.save(); c.translate(q.x, q.y); c.rotate(q.rot); if (q.shape === 'star') star(q.size); else c.fillRect(-q.size / 2, -q.size / 4, q.size, q.size / 2); c.restore(); }
+					}
+					c.globalAlpha = 1;
+					if (parts.length) raf = requestAnimationFrame(frame); else setLive(null);
+				};
+				raf = requestAnimationFrame(frame);
+				return () => { stopped = true; cancelAnimationFrame(raf); };
+			}, [live]);
+			if (!live) return null;
+			return h('canvas', { ref: cv, 'aria-hidden': true, style: { position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 10001, pointerEvents: 'none' } });
 		}
 		// ------------------------------------------------------------ game window
 		const WIN_W = 300;
@@ -1231,6 +1350,34 @@ window.__ModuleLoader__.load({
 					}))) : null);
 		}
 
+		function StateEffectsCard(p) {
+			const { store } = p;
+			const st = useStore(store);
+			const s = st.settings;
+			const set = (key, patch) => store.setSettings({ stateEffects: { ...s.stateEffects, ...(patch.effect ? { [key]: patch.effect } : {}) }, stateColors: { ...s.stateColors, ...(patch.color ? { [key]: patch.color } : {}) } });
+			return h('section', { className: 'rzd-card', 'aria-label': 'Other chat states' },
+				h('div', { className: 'rzd-col' }, h('h3', { className: 'rzd-title' }, 'Other chat states'), h('div', { className: 'rzd-sub' }, 'Give chats a different look when they are waiting for you, hit an error, or just finished. Uses the same intensity as the working effect.')),
+				STATE_LIST.map((row) => h('div', { key: row.key, className: 'rzd-col', style: { gap: 6 } },
+					h('div', { className: 'rzd-row', style: { justifyContent: 'flex-start' } },
+						h('span', { style: { minWidth: 120, fontWeight: 600 } }, row.label),
+						h('span', { className: 'rzd-sub' }, row.hint)),
+					h('div', { className: 'rzd-tabs', role: 'radiogroup', 'aria-label': row.label + ' effect' },
+						STATE_EFFECT_LIST.map(([id, label]) => h('button', { key: id, type: 'button', role: 'radio', 'aria-checked': (s.stateEffects[row.key] || 'off') === id, className: 'rzd-tab', 'data-on': (s.stateEffects[row.key] || 'off') === id ? '' : undefined, onClick: () => set(row.key, { effect: id }) }, label)),
+						(s.stateEffects[row.key] && s.stateEffects[row.key] !== 'off' && s.stateEffects[row.key] !== 'rainbow') ? h('input', { type: 'color', className: 'rzd-color', 'aria-label': row.label + ' color', value: s.stateColors[row.key], onChange: (e) => set(row.key, { color: e.target.value }) }) : null))));
+		}
+
+		function CelebrateCard(p) {
+			const { store } = p;
+			const st = useStore(store);
+			const s = st.settings;
+			return h('section', { className: 'rzd-card', 'aria-label': 'Celebration' },
+				h('div', { className: 'rzd-col' }, h('h3', { className: 'rzd-title' }, 'Finish celebration'), h('div', { className: 'rzd-sub' }, 'A short burst over the chat box when a chat finishes working. Turned off automatically if your computer asks apps to reduce motion.')),
+				h('div', { className: 'rzd-tabs', role: 'radiogroup', 'aria-label': 'Celebration' }, CELEBRATIONS.map(([id, label]) => h('button', { key: id, type: 'button', role: 'radio', 'aria-checked': s.celebrate === id, className: 'rzd-tab', 'data-on': s.celebrate === id ? '' : undefined, onClick: () => { store.setSettings({ celebrate: id }); if (id !== 'off') store.celebrate(id); } }, label))),
+				h('div', { className: 'rzd-row' },
+					h('span', null, 'Also celebrate a won game'),
+					h(Switch, { checked: s.celebrateOnGame, label: 'Celebrate a won game', onChange: (v) => store.setSettings({ celebrateOnGame: v }) })),
+				s.celebrate !== 'off' ? h('div', { className: 'rzd-row', style: { justifyContent: 'flex-start' } }, h('button', { type: 'button', className: 'rzd-btn', onClick: () => store.celebrate(s.celebrate) }, 'Try it')) : null);
+		}
 		function BorderCard(p) {
 			const { store } = p;
 			const st = useStore(store);
@@ -1318,6 +1465,8 @@ window.__ModuleLoader__.load({
 					h(ThemeCard, { store }),
 					h(BackgroundCard, { store }),
 					h(EffectCard, { store }),
+					h(StateEffectsCard, { store }),
+					h(CelebrateCard, { store }),
 					h(BorderCard, { store }),
 					h(TintCard, { store }),
 					h(PetCard, { store }),
@@ -1328,7 +1477,7 @@ window.__ModuleLoader__.load({
 		}
 
 		return {
-			__test: { PerchDock, Buddy, centerPiece, PetPanel, GameWindow, effectCss, borderCss, tintFor, hexRgb, clamp, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel, themeFrom, exportTheme, parseTheme, PRESETS },
+			__test: { allEffectsCss, StateEffectsCard, Celebration, PerchDock, Buddy, centerPiece, PetPanel, GameWindow, effectCss, borderCss, tintFor, hexRgb, clamp, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel, themeFrom, exportTheme, parseTheme, PRESETS },
 			inject: ['slots', 'connection'],
 			apply(ctx) {
 				const store = createStore(ctx.get('connection').rpc);
@@ -1339,7 +1488,7 @@ window.__ModuleLoader__.load({
 				ctx.slots.inject('settings.section', () =>
 					ctx.slots.register({ name: 'settings.section', id: 'rayskinz-design', order: 30, label: () => 'Design Options' }, Section));
 				const Floating = function GameSeat() {
-					return h(React.Fragment, null, h(Buddy, { store }), h(GameWindow, { store }));
+					return h(React.Fragment, null, h(Buddy, { store }), h(GameWindow, { store }), h(Celebration, { store }));
 				};
 				ctx.slots.inject('conversation.input.dock', () =>
 					ctx.slots.register({ name: 'conversation.input.dock', id: 'rayskinz-perch', order: 50 }, function PerchSeat() { return h(PerchDock, { store }); }));
@@ -1351,7 +1500,7 @@ window.__ModuleLoader__.load({
 					let was = false;
 					const check = () => {
 						const now = !!document.querySelector('svg[data-state="ongoing"]');
-						if (was && !now) store.pet.reward();
+						if (was && !now) { store.pet.reward(); store.celebrate(); }
 						was = now;
 						store.setWorking(now);
 					};
