@@ -9,9 +9,10 @@ A design plugin for DeepSeek Harness (DSH). Backgrounds, a wallpaper and GIF hub
 - Working-chat effects in the sidebar: rainbow wave, pulse, scanner, ember.
 - Window border: neon, rainbow, gold, stripes or fire, optionally only while a chat is working.
 - Chat colors: color a sidebar chat by a word in its title, so sub-chats named after a model (Opus, Sonnet, Haiku...) are easy to tell apart. Whole words only.
+- Themes: four one-click looks (Avatar, Cyberpunk, Minimal, Party) and Copy my look / Paste a theme to share yours as text. Themes never include your background, pet or GIPHY key.
 - Pet: a small pet under the chat box. Finished chats earn it coins; feed it, play with it, unlock new species. It never dies.
 
-More is planned (theme packs, pet mini-games). See the issues.
+More is planned (pet mini-games, sound). See the issues.
 
 ## Install
 

@@ -14,7 +14,7 @@ globalThis.window = { __ModuleLoader__: { load: (m) => { captured = m } } }
 await import(pathToFileURL(path.resolve('lib/client.js')).href + '?t=' + Date.now())
 const React = { createElement: () => null, useState: () => [0, () => {}], useEffect() {}, useRef: () => ({}), useCallback: (f) => f }
 const client = captured.factory((name) => { assert.equal(name, 'react'); return React })
-const { effectCss, borderCss, tintFor, hexRgb, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel } = client.__test
+const { effectCss, borderCss, tintFor, hexRgb, petTick, petFeed, petPlay, petPat, petReward, petBuy, petMood, petLevel, themeFrom, exportTheme, parseTheme, PRESETS } = client.__test
 
 async function call(ep, payload) {
   const r = host.rpcRoute(ep)
@@ -176,5 +176,35 @@ test('host: private and local addresses are refused', async () => {
   }
   for (const good of ['example.com', '8.8.8.8', 'i.imgur.com', '172.32.0.1', '11.0.0.1']) assert.equal(host.isPrivateHost(good), false, good)
   assert.match((await call('applyLink', { url: 'https://user:pw@example.com/x.gif' })).error.message, /username/)
+})
+test('themes: export never includes private data', () => {
+  const settings = { ...host.DEFAULT_SETTINGS, giphyKey: 'SECRETSECRETSECRET', petEnabled: true, bgEnabled: true, effect: 'ember' }
+  const out = exportTheme(settings)
+  assert.ok(!out.includes('SECRET')); assert.ok(!out.includes('petEnabled')); assert.ok(!out.includes('bgEnabled'))
+  assert.equal(parseTheme(out).theme.effect, 'ember')
+  assert.deepEqual(Object.keys(themeFrom(settings)).sort(), ['blur', 'borderColor', 'borderOnlyWorking', 'borderStyle', 'borderWidth', 'dim', 'effect', 'effectColor', 'panel', 'speed', 'tintEnabled', 'tintRules'])
+})
+
+test('themes: parse rejects junk, drops unknown keys', () => {
+  assert.match(parseTheme('hello').error, /not valid theme text/)
+  assert.match(parseTheme('{"a":1}').error, /not a Rayskinz theme/)
+  assert.match(parseTheme('null').error, /not a Rayskinz theme/)
+  assert.match(parseTheme('{"rayskinzDesignTheme":1,"theme":{}}').error, /empty/)
+  assert.match(parseTheme('{"rayskinzDesignTheme":2,"theme":{"panel":3}}').error, /not a Rayskinz theme/)
+  const r = parseTheme('{"rayskinzDesignTheme":1,"theme":{"panel":30,"giphyKey":"x","petEnabled":true,"__proto__":{"x":1}}}')
+  assert.deepEqual(r.theme, { panel: 30 })
+})
+
+test('themes: hostile theme values are neutralised by the host sanitiser', () => {
+  const hostile = parseTheme(JSON.stringify({ rayskinzDesignTheme: 1, theme: { panel: 1e9, effect: '</style><script>', borderColor: 'url(javascript:1)', borderStyle: 'x', tintRules: [{ match: 'a', color: 'red;background:url(x)' }] } })).theme
+  const s = host.sanitizeSettings(hostile)
+  assert.equal(s.panel, 100); assert.equal(s.effect, 'off'); assert.equal(s.borderColor, '#7c5cff'); assert.equal(s.borderStyle, 'off'); assert.deepEqual(s.tintRules, [])
+})
+
+test('themes: every preset survives the host sanitiser unchanged', () => {
+  for (const pr of PRESETS) {
+    const s = host.sanitizeSettings(pr.theme)
+    for (const [k, v] of Object.entries(pr.theme)) assert.deepEqual(s[k], v, pr.id + ':' + k)
+  }
 })
 test.after(() => fs.rmSync(dir, { recursive: true, force: true }))
