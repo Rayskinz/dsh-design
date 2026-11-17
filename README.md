@@ -7,8 +7,10 @@ A design plugin for DeepSeek Harness (DSH). Backgrounds, a wallpaper and GIF hub
 - Chat background behind every chat: wallpaper search (Wallhaven), GIF search (GIPHY), pasted link, or your own file. Animated GIFs and mp4/webm work.
 - Sliders for panel see-through, darken and blur.
 - Working-chat effects in the sidebar: rainbow wave, pulse, scanner, ember.
+- Window border: neon, rainbow, gold, stripes or fire, optionally only while a chat is working.
+- Chat colors: color a sidebar chat by a word in its title, so sub-chats named after a model (Opus, Sonnet, Haiku...) are easy to tell apart. Whole words only.
 
-More is planned (sub-chat borders, a pet, themes). See the issues.
+More is planned (a pet, theme packs). See the issues.
 
 ## Install
 
@@ -23,6 +25,10 @@ Then add the folder as a bundle (`@rayskinz/dsh-design`) and enable it. Open **S
 ## GIFs need a free GIPHY key
 
 Wallpapers work with no setup. For GIF search, create a free key at https://developers.giphy.com/dashboard/ (100 searches an hour), and paste it into the GIFs tab. The key is stored on your computer only. A background GIF downloaded from GIPHY is shown with "Powered by GIPHY" credit in the hub.
+
+## Tests
+
+`npm test` runs the offline tests (settings validation, tint matching, border/effect CSS, host relay). Needs Node 20+.
 
 ## Where things are stored
 
