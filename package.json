@@ -1,7 +1,7 @@
 ﻿{
     "name":  "@rayskinz/dsh-design",
-    "version":  "0.9.1",
-    "description":  "Rayskinz DSH Design: backgrounds (wallpaper and GIF hub, saved list, per chat or workspace), sidebar effects, chat colors, accent and chat look, a pet with games, and themes, in one Design Options page.",
+    "version":  "0.9.2",
+    "description":  "Make DeepSeek Harness yours: wallpaper and GIF backgrounds (per chat or workspace), sidebar effects, chat colors, fonts incl. dyslexic, bubbles, chat pictures, window borders, sounds, one-click themes, and a pet with Snake, Tetris, 2048, Minesweeper and Pong.",
     "license":  "MIT",
     "author":  "Rayskinz",
     "repository":  {
@@ -12,10 +12,31 @@
     "keywords":  [
                      "deepseek-harness",
                      "dsh-plugin",
+                     "dsh",
                      "theme",
+                     "themes",
                      "wallpaper",
+                     "background",
                      "gif",
-                     "customization"
+                     "animated-background",
+                     "customization",
+                     "chat-colors",
+                     "sidebar-effects",
+                     "window-border",
+                     "accent-color",
+                     "fonts",
+                     "dyslexic-font",
+                     "avatars",
+                     "chat-bubbles",
+                     "sounds",
+                     "pet",
+                     "virtual-pet",
+                     "minigames",
+                     "snake",
+                     "tetris",
+                     "2048",
+                     "minesweeper",
+                     "pong"
                  ],
     "private":  false,
     "type":  "module",
@@ -64,4 +85,3 @@
                           "access":  "public"
                       }
 }
-

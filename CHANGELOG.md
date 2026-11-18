@@ -12,6 +12,12 @@ Every release of Rayskinz DSH Design, newest first. Each version has a matching 
 
 ---
 
+## 0.9.2 - 2026-11-18
+
+- Docs and package info only: the npm page now shows the full README, a richer description and keywords. First npm release.
+
+---
+
 ## 0.9.1 - 2026-11-18
 
 - Docs only: README rewritten with a full feature tour, install, update and uninstall steps. First GitHub release.
@@ -75,4 +81,5 @@ Everything below is in this version. The earlier numbers were built the same day
 ---
 
 What is planned next is in [`docs/PLAN-2.md`](docs/PLAN-2.md).
+
 
