@@ -50,9 +50,9 @@ DSH loads plugins as bundles. Pick one way:
 3. Restart DSH (or switch the plugin off and on).
 4. Open **Settings -> Design Options**. That is the whole plugin.
 
-**B. From npm (once published)**
+**B. From npm**
 
-The package name is `@rayskinz/dsh-design`. When it is on npm, add it in **Plugins** by name, or add `"@rayskinz/dsh-design"` to your profile's dependencies and bundles list and restart DSH.
+The package is [`@rayskinz/dsh-design`](https://www.npmjs.com/package/@rayskinz/dsh-design). In DSH open **Plugins**, search for it by name and install it, or add `"@rayskinz/dsh-design"` to your profile's dependencies and bundles list. Restart DSH, then open **Settings -> Design Options**.
 
 ## Update
 
