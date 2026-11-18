@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 Every release of Rayskinz DSH Design, newest first. Each version has a matching tag (`v0.9.0`) and a release page under
 **Releases** on GitHub, so you can see exactly what changed and download that version.
@@ -9,6 +9,12 @@ Every release of Rayskinz DSH Design, newest first. Each version has a matching 
 - To update: in your install folder run `git pull`, then switch the plugin off and on in **Settings -> Plugins** (or restart DSH).
 - Your settings, saved backgrounds, themes and pet live in `~/.dsh/plugins/rayskinz-design/` and are not touched by an update.
 - To see which version you have: open `package.json` in the install folder, or the small footer at the bottom of **Design Options**.
+
+---
+
+## 0.9.3 - 2026-11-18
+
+- Remove UTF-8 BOM from package files; fixes DSH install validation error.
 
 ---
 

@@ -1,6 +1,6 @@
-﻿{
+{
     "name":  "@rayskinz/dsh-design",
-    "version":  "0.9.2",
+    "version":  "0.9.3",
     "description":  "Make DeepSeek Harness yours: wallpaper and GIF backgrounds (per chat or workspace), sidebar effects, chat colors, fonts incl. dyslexic, bubbles, chat pictures, window borders, sounds, one-click themes, and a pet with Snake, Tetris, 2048, Minesweeper and Pong.",
     "license":  "MIT",
     "author":  "Rayskinz",
@@ -76,6 +76,8 @@
             },
     "scripts":  {
                     "build":  "node tools/build-client.mjs",
+                    "check:bom":  "node tools/check-bom.mjs",
+                    "prepublishOnly":  "node tools/check-bom.mjs",
                     "test":  "node tools/build-client.mjs --check \u0026\u0026 node --test test/avatars-host.test.mjs test/design.test.mjs test/family.test.mjs test/fx.test.mjs test/games.test.mjs test/games2.test.mjs test/library.test.mjs test/library-host.test.mjs test/look.test.mjs test/pet2.test.mjs test/themes.test.mjs test/themes-host.test.mjs"
                 },
     "bugs":  {

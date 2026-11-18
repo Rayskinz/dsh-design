@@ -1,4 +1,4 @@
-﻿# Rayskinz DSH Design
+# Rayskinz DSH Design
 
 **Make DeepSeek Harness (DSH) look and feel like yours.** One **Design Options** page in Settings gives you animated backgrounds, sidebar effects, chat colors, fonts and bubbles, glowing window borders, soft sounds, a little pet with five mini games, and one-click themes.
 
