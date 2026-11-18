@@ -42,6 +42,10 @@ git clone https://github.com/Rayskinz/dsh-design.git
 
 Then add the folder as a bundle (`@rayskinz/dsh-design`) and enable it. Open **Settings -> Design Options**.
 
+## Updates
+
+Every version is listed in [`CHANGELOG.md`](CHANGELOG.md) and has a tagged release under **Releases**. To follow updates, click **Watch -> Custom -> Releases** on the repo page, or use the feed `https://github.com/Rayskinz/dsh-design/releases.atom`. To update, run `git pull` in the install folder and switch the plugin off and on. Your settings and saved data are kept in `~/.dsh/plugins/rayskinz-design/` and are not changed by an update.
+
 ## GIFs work out of the box
 
 Wallpapers, the **GIFs** tab (Wikimedia Commons) and the **Anime GIFs** tab (nekos.best) need no account or key. The optional **GIPHY** tab needs a free key from https://developers.giphy.com/dashboard/ (100 searches an hour); paste it into that tab. The key is stored on your computer only and never sent back to the Settings page.
