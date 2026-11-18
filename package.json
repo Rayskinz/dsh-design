@@ -6,9 +6,9 @@
     "author":  "Rayskinz",
     "repository":  {
                        "type":  "git",
-                       "url":  "git+https://github.com/rayskinz/dsh-design.git"
+                       "url":  "git+https://github.com/Rayskinz/dsh-design.git"
                    },
-    "homepage":  "https://github.com/rayskinz/dsh-design#readme",
+    "homepage":  "https://github.com/Rayskinz/dsh-design#readme",
     "keywords":  [
                      "deepseek-harness",
                      "dsh-plugin",
@@ -55,5 +55,11 @@
     "scripts":  {
                     "build":  "node tools/build-client.mjs",
                     "test":  "node tools/build-client.mjs --check \u0026\u0026 node --test test/avatars-host.test.mjs test/design.test.mjs test/family.test.mjs test/fx.test.mjs test/games.test.mjs test/games2.test.mjs test/library.test.mjs test/library-host.test.mjs test/look.test.mjs test/pet2.test.mjs test/themes.test.mjs test/themes-host.test.mjs"
-                }
+                },
+    "bugs":  {
+                 "url":  "https://github.com/Rayskinz/dsh-design/issues"
+             },
+    "publishConfig":  {
+                          "access":  "public"
+                      }
 }

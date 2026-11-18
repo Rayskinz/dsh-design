@@ -37,7 +37,7 @@ See `docs/PLAN-2.md` for what comes next.
 In DSH open **Settings -> Plugins** and install a bundle from a local folder or git:
 
 ```
-git clone https://github.com/rayskinz/dsh-design.git
+git clone https://github.com/Rayskinz/dsh-design.git
 ```
 
 Then add the folder as a bundle (`@rayskinz/dsh-design`) and enable it. Open **Settings -> Design Options**.
