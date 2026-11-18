@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 Every release of Rayskinz DSH Design, newest first. Each version has a matching tag (`v0.9.0`) and a release page under
 **Releases** on GitHub, so you can see exactly what changed and download that version.
@@ -9,6 +9,12 @@ Every release of Rayskinz DSH Design, newest first. Each version has a matching 
 - To update: in your install folder run `git pull`, then switch the plugin off and on in **Settings -> Plugins** (or restart DSH).
 - Your settings, saved backgrounds, themes and pet live in `~/.dsh/plugins/rayskinz-design/` and are not touched by an update.
 - To see which version you have: open `package.json` in the install folder, or the small footer at the bottom of **Design Options**.
+
+---
+
+## 0.9.1 - 2026-11-18
+
+- Docs only: README rewritten with a full feature tour, install, update and uninstall steps. First GitHub release.
 
 ---
 
@@ -69,3 +75,4 @@ Everything below is in this version. The earlier numbers were built the same day
 ---
 
 What is planned next is in [`docs/PLAN-2.md`](docs/PLAN-2.md).
+

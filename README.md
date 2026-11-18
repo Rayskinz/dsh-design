@@ -1,7 +1,10 @@
-# Rayskinz DSH Design
+﻿# Rayskinz DSH Design
 
-A design plugin for DeepSeek Harness (DSH). Backgrounds, effects, colors, a chat look and a small pet with games, all on one **Design Options** page in Settings.
+**Make DeepSeek Harness (DSH) look and feel like yours.** One **Design Options** page in Settings gives you animated backgrounds, sidebar effects, chat colors, fonts and bubbles, glowing window borders, soft sounds, a little pet with five mini games, and one-click themes.
 
+It is a free, open-source DSH plugin (MIT). No account, no cloud service, no tracking. Everything you pick is saved on your own computer, and nothing changes until you change it.
+
+**Requirements:** DeepSeek Harness (desktop or web app) with plugin support, and Node 20+ only if you want to run the tests.
 ## Features
 
 **Backgrounds**
@@ -34,18 +37,33 @@ See `docs/PLAN-2.md` for what comes next.
 
 ## Install
 
-In DSH open **Settings -> Plugins** and install a bundle from a local folder or git:
+DSH loads plugins as bundles. Pick one way:
 
-```
-git clone https://github.com/Rayskinz/dsh-design.git
-```
+**A. From GitHub (works today)**
 
-Then add the folder as a bundle (`@rayskinz/dsh-design`) and enable it. Open **Settings -> Design Options**.
+1. Download or clone this repo to a folder you will keep, for example:
+   ```
+   git clone https://github.com/Rayskinz/dsh-design.git
+   ```
+   (No git? Click **Code -> Download ZIP** on the repo page and unzip it.)
+2. In DSH open **Plugins -> Add plugin** and pick the `dsh-design` folder. You can also ask any DSH chat: "install the bundle from this folder with `plugin_manager install_bundle`".
+3. Restart DSH (or switch the plugin off and on).
+4. Open **Settings -> Design Options**. That is the whole plugin.
 
-## Updates
+**B. From npm (once published)**
 
-Every version is listed in [`CHANGELOG.md`](CHANGELOG.md) and has a tagged release under **Releases**. To follow updates, click **Watch -> Custom -> Releases** on the repo page, or use the feed `https://github.com/Rayskinz/dsh-design/releases.atom`. To update, run `git pull` in the install folder and switch the plugin off and on. Your settings and saved data are kept in `~/.dsh/plugins/rayskinz-design/` and are not changed by an update.
+The package name is `@rayskinz/dsh-design`. When it is on npm, add it in **Plugins** by name, or add `"@rayskinz/dsh-design"` to your profile's dependencies and bundles list and restart DSH.
 
+## Update
+
+- Folder install: run `git pull` in the plugin folder (or download the new ZIP over it), then switch the plugin off and on or restart DSH.
+- npm install: update the package in DSH Plugins and restart.
+- Your settings, pet, saved backgrounds and themes live in `~/.dsh/plugins/rayskinz-design/` and are not touched by an update.
+- Follow new versions: **Watch -> Custom -> Releases** on the repo page, or the feed `https://github.com/Rayskinz/dsh-design/releases.atom`. Every version is listed in [`CHANGELOG.md`](CHANGELOG.md).
+
+## Uninstall
+
+Remove the plugin in **Plugins** and restart DSH. To also erase your saved settings, pet and backgrounds, delete `~/.dsh/plugins/rayskinz-design/`.
 ## GIFs work out of the box
 
 Wallpapers, the **GIFs** tab (Wikimedia Commons) and the **Anime GIFs** tab (nekos.best) need no account or key. The optional **GIPHY** tab needs a free key from https://developers.giphy.com/dashboard/ (100 searches an hour); paste it into that tab. The key is stored on your computer only and never sent back to the Settings page.
@@ -87,3 +105,4 @@ The plugin talks only to wallhaven.cc, commons.wikimedia.org, nekos.best and api
 ## License
 
 MIT, Rayskinz.
+
